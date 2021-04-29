@@ -1,0 +1,387 @@
+#!/usr/bin/micropython
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+import os, json
+
+config_file="/etc/update-system.json"
+
+tmp_config_file = "/tmp/config.json"
+tmp_firmware_file = "/tmp/firmware.img"
+tmp_itb_file = "/tmp/itb.img"
+tmp_boot_tgz = "/tmp/boot.tgz"
+
+mmc0_block_dev="/dev/mmcblk0"
+mmc1_block_dev="/dev/mmcblk1"
+
+boot_mount="/mnt/boot"
+root_mount="/mnt/root"
+jffs2_mount="/mnt/rwfs"
+
+jffs2_mtd_dev="/dev/mtd2"
+jffs2_block_dev="/dev/mtdblock2"
+
+DEBUG=True
+
+def debug(txt):
+    global DEBUG
+    if DEBUG:
+        print("DEBUG: " + txt)
+
+def path_exists(filename):
+    try:
+        status = os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+def file_size(filename):
+    if path_exists(filename):
+        stat = os.stat(filename)
+        return stat[6]
+    return 0
+
+def umount_boot():
+    retval = os.system("umount %s" % boot_mount)
+    return retval == 0
+
+def umount_root():
+    retval = os.system("umount %s" % root_mount)
+    return retval == 0
+
+def umount_jffs2():
+    retval = os.system("umount %s" % jffs2_mount)
+    return retval == 0
+
+def unlock(mtd_dev):
+    retval = os.system("flash_unlock %s" % mtd_dev)
+    return retval == 0
+
+def mount_boot(block_dev):
+    boot_dev=block_dev + "p2"
+    if path_exists(boot_dev):
+        if not path_exists(boot_mount):
+            os.mkdir(boot_mount)
+        if path_exists(boot_mount):
+            umount_boot()
+            os.system("mount %s %s" % (boot_dev, boot_mount))
+
+def mount_root(block_dev):
+    root_dev=block_dev + "p3"
+    if path_exists(root_dev):
+        if not path_exists(root_mount):
+            os.mkdir(root_mount)
+        if path_exists(root_mount):
+            umount_root()
+            os.system("mount %s %s" % (root_dev, root_mount))
+
+def mount_jffs2():
+    if path_exists(jffs2_block_dev):
+        if not path_exists(jffs2_mount):
+            os.mkdir(jffs2_mount)
+        if path_exists(jffs2_mount):
+            umount_jffs2()
+            os.system("mount %s %s" % (jffs2_block_dev, jffs2_mount))
+
+def erase_boot():
+    if path_exists(boot_mount):
+        debug("Erasing " + boot_mount + "/*")
+        os.system("rm -rf " + boot_mount + "/*")
+
+def erase_root():
+    if path_exists(root_mount):
+        debug("Erasing " + boot_mount + "/*")
+        os.system("rm -rf " + boot_mount + "/*")
+
+def erase_jffs2():
+    if path_exists(jff2_mtd_dev):
+        umount_jffs2()
+        debug("Erasing " + jffs2_mtd_dev)
+        os.system("flash_erase " + jffs2_mtd_dev + "0 0")
+
+def populate_boot(tgz):
+    if path_exists(tgz) and path_exists(boot_mount):
+        cwd = os.getcwd()
+        os.chdir(boot_mount)
+        cmdline = "gzip -d -c " + tgz + " | tar -x"
+        debug("Populating " + boot_mount + " from " + tgz + "using cmdline = " + cmdline)
+        retval = os.system(cmdline)
+        os.chdir(cwd)
+        return retval == 0
+
+class update_obj:
+    def __init__(self, config):
+        self.config_file = config
+        self.conf = None
+        self.prev_conf = None
+
+    def find_config(self, key, default=None, use_prev = False):
+        if self.prev_conf is None:
+            use_prev = False
+        if not self.conf is None:
+            if key in self.conf:
+                value = self.conf[key]
+                debug("parsing " + key + " returned " + str(value))
+                return value
+            if use_prev and (key in self.prev_conf):
+                value = self.prev_conf[key]
+                debug("parsing " + key + " returned " + str(value) + " from previous conf")
+                return value
+        return default
+
+    def parse_config(self):
+        self.conf = None
+        if not self.config_file is None:
+          debug("parsing %s" % self.config_file)
+          with open(self.config_file,"r") as f:
+            try:
+              self.conf = json.load(f)
+            except:
+              if file_size(self.config_file) > 0:
+                debug("json bad from path %s" % self.config_file)
+
+        self.update_server = self.find_config("update_server", None, True)
+        self.update_transport = self.find_config("update_server_transport", "http", True)
+        self.update_user = self.find_config("update_server_user", "root", True)
+        self.update_dir = self.find_config("update_dir", None, True)
+
+        self.update_config_file = self.find_config("update_config_file")
+
+        self.update_fw_mmc0 = self.find_config("update_fw_mmc0")
+        self.update_fw_mmc0_file = self.find_config("update_fw_mmc0_file")
+
+        self.update_xspi = self.find_config("update_xspi")
+        self.update_xspi_fw = self.find_config("update_xspi_fw")
+        self.update_xspi_maintenance = self.find_config("update_xspi_maintenance")
+        self.update_xspi_file = self.find_config("update_xspi_file")
+
+        self.update_itb = self.find_config("update_itb")
+        self.update_itb_file = self.find_config("update_itb_file")
+
+#        self.update_boot = self.find_config("update_boot")
+#        self.update_boot_server = self.find_config("boot_image_server")
+#        self.update_boot_image_dir = self.find_config("boot_image_dir")
+#        self.update_boot_image_file = self.find_config("boot_image_file")
+
+        self.partition_mmc0 = self.find_config("partition_mmc0")
+        self.partition_mmc0_8 = self.find_config("partition_mmc0_8")
+        self.partition_mmc0_16 = self.find_config("partition_mmc0_16")
+        self.partition_mmc0_32 = self.find_config("partition_mmc0_32")
+        self.partition_mmc0_64 = self.find_config("partition_mmc0_64")
+        self.partition_mmc0_128 = self.find_config("partition_mmc0_128")
+        self.partition_mmc0_256 = self.find_config("partition_mmc0_256")
+
+        self.partition_mmc1 = self.find_config("partition_mmc1")
+        self.partition_mmc1_16 = self.find_config("partition_mmc1_16")
+        self.partition_mmc1_32 = self.find_config("partition_mmc1_32")
+        self.partition_mmc1_64 = self.find_config("partition_mmc1_64")
+        self.partition_mmc1_128 = self.find_config("partition_mmc1_128")
+        self.partition_mmc1_256 = self.find_config("partition_mmc1_256")
+
+        self.update_mmc0_boot = self.find_config("update_mmc0_boot")
+        self.update_mmc0_boot_file = self.find_config("update_mmc0_boot_file")
+
+        self.update_mmc1_boot = self.find_config("update_mmc1_boot")
+        self.update_mmc1_boot_file = self.find_config("update_mmc1_boot_file")
+
+        self.erase_boot = self.find_config("erase_boot")
+        self.erase_root = self.find_config("erase_root")
+        self.erase_jffs2 = self.find_config("erase_jffs2")
+
+        self.reboot = self.find_config("reboot")
+
+    def fetch_file(self, file , dest):
+        if (self.update_transport is None) or (self.update_server is None) or (self.update_dir is None) or (file is None) or (dest is None):
+           return False
+        use_ssh = self.update_transport is "ssh"
+        if use_ssh:
+            url = self.update_user + "@" + self.update_server +":/" + self.update_dir + "/" + file
+        else:
+            url = self.update_transport + "://" + self.update_server + self.update_dir + "/" + file
+        debug("Trying to load " + dest + " from " + url)
+        if path_exists(dest):
+            os.system("unlink " + dest)
+        if use_ssh:
+            os.system("scp " + url + " " + dest)
+        else:
+            os.system("curl -L -o " + dest + " " + url)
+        return path_exists(dest)
+
+    def load_new_config(self):
+        self.config_file = None
+        self.prev_conf = self.conf
+        if self.fetch_file(self.update_config_file, tmp_config_file):
+            self.config_file = tmp_config_file
+
+    def check_valid(self):
+        if self.conf is None:
+            return False
+#        secure_file = self.path+'.sec'
+#        with open(self.path+'.sec') as f:
+#            try:
+#                 obj = json.load(f)
+#                 if "secure" in obj.keys():
+#                     if not obj["secure"] is False:
+#                         return True
+#            except:
+#                debug("secure JSON object invalid")
+#        return False
+        return True
+
+    def update(self):
+        again = True
+        while again:
+            again = False
+            self.parse_config()
+            self.config_file = None
+            if self.check_valid():
+                self.do_update()
+                self.load_new_config()
+                if not self.config_file is None:
+                    again = True
+
+    def do_update(self):
+
+        debug("Running do_update()")
+
+        # first see if flash needs partitioning
+        if self.partition_mmc0:
+            debug("Autodetect sd size coming soon!")
+        if self.partition_mmc0_8:
+            os.system("mkpart mmcblk0 8")
+        if self.partition_mmc0_16:
+            os.system("mkpart mmcblk0 16")
+        if self.partition_mmc0_32:
+            os.system("mkpart mmcblk0 32")
+        if self.partition_mmc0_64:
+            os.system("mkpart mmcblk0 64")
+        if self.partition_mmc0_128:
+            os.system("mkpart mmcblk0 128")
+        if self.partition_mmc0_256:
+            os.system("mkpart mmcblk0 256")
+        if self.partition_mmc1:
+            print("partition mmc1")
+        if self.partition_mmc1_16:
+            os.system("mkpart mmcblk1 16")
+        if self.partition_mmc1_32:
+            os.system("mkpart mmcblk1 32")
+        if self.partition_mmc1_64:
+            os.system("mkpart mmcblk1 64")
+        if self.partition_mmc1_128:
+            os.system("mkpart mmcblk1 128")
+        if self.partition_mmc1_256:
+            os.system("mkpart mmcblk1 256")
+
+        # then see if boot partition needs updating
+
+        if self.update_fw_mmc0:
+            self.fetch_file(self.update_fw_mmc0_file, tmp_firmware_file)
+            if file_size(tmp_firmware_file) > 20000:
+                os.system("update_mmc " + tmp_firmware_file + ' ' + mmc0_block_dev)
+            else:
+                debug("not programming file")
+
+        if self.update_xspi:
+            self.fetch_file(self.update_xspi_file, tmp_firmware_file)
+            if file_size(tmp_firmware_file) > 20000:
+                debug("updating xspi")
+                os.system("update_xspi " + tmp_firmware_file)
+            else:
+                debug("not programming file")
+
+        if self.update_xspi_fw:
+            self.fetch_file(self.update_xspi_file, tmp_firmware_file)
+            if file_size(tmp_firmware_file) > 20000:
+                debug("installing xspi firmware image")
+                os.system("update_xspi_fw " + tmp_firmware_file)
+            else:
+                debug("not programming file")
+
+        if self.update_xspi_maintenance:
+            self.fetch_file(self.update_xspi_file, tmp_firmware_file)
+            if file_size(tmp_firmware_file) > 20000:
+                debug("installing xspi maintenance application")
+                os.system("update_xspi_maintenance " + tmp_firmware_file)
+            else:
+                debug("not programming file")
+
+        if self.update_mmc0_boot:
+            self.fetch_file(self.update_mmc0_boot_file, tmp_boot_tgz)
+            if file_size(tmp_boot_tgz) > 100000:
+                debug("installing " + tmp_boot_tgz + " over boot partition")
+                mount_boot(mmc0_block_dev)
+                if self.erase_boot:
+                    erase_boot()
+                populate_boot(tmp_boot_tgz)
+                umount_boot()
+                if self.erase_root:
+                    mount_root(mmc0_block_dev)
+                    erase_root()
+            else:
+                debug("Unable to find " + boot_tgz_path)
+
+        if self.update_mmc1_boot:
+            self.fetch_file(self.update_mmc1_boot_file, tmp_boot_tgz)
+            if file_size(tmp_boot_tgz) > 100000:
+                debug("installing " + tmp_boot_tgz + " over boot partition")
+                mount_boot(mmc1_block_dev)
+                if self.erase_boot:
+                    erase_boot()
+                populate_boot(tmp_boot_tgz)
+                umount_boot()
+                if self.erase_root:
+                    mount_root(mmc1_block_dev)
+                    erase_root()
+            else:
+                debug("Unable to find " + boot_tgz_path)
+
+        # then see if itb needs updating
+
+        # then see if fw needs updating
+
+        if self.erase_jffs2:
+            erase_jffs2()
+
+        if self.reboot:
+            os.system("reboot")
+
+        return False
+
+#        if self.update_boot:
+#            boot_tgz_path = self.dir +'/'+self.rootfs_tgz
+#            if path_exists(boot_tgz_path):
+#                debug("installing %s to boot" % boot_tgz_path)
+#                mount_boot()
+#                erase_boot()
+#                populate_boot(boot_tgz_path)
+#                umount_boot()
+#            else:
+#                debug("Unable to find " + boot_tgz_path)
+#        if self.run:
+#            os.chdir(self.dir)
+#            os.system("./"+self.run)
+
+def get_update(config):
+    retval = None
+    if path_exists(config):
+        retval = update_obj(config)
+    return retval
+
+test = os.getenv("CONFIG_FILE")
+if path_exists(test):
+    config_file = test
+
+update_obj = get_update(config_file)
+
+if not update_obj is None:
+    again = True
+    while again:
+        again = update_obj.update()
+    print("update completed")
+else:
+    print("update not avaiable")
+
+debug("update-system complete")

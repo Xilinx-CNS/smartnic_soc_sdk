@@ -1,0 +1,2 @@
+python3-sphinx cmake libibverbs-dev pkg-config libncurses5-dev libaio-dev libfuse-dev zlib1g-dev libudev-dev librdmacm-dev libblkid-dev libldap2-dev libldap2-dev libleveldb-dev libsnappy-dev liblz4-dev libgoogle-perftools-dev libkeyutils-dev libcurl4-openssl-dev libexpat1-dev liboath-dev libpython2.7-dev liblttng-ust-dev libbabeltrace-dev libnl-genl-3-dev gperf librabbitmq-dev cython
+

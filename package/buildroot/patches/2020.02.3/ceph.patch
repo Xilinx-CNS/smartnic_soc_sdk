@@ -1,0 +1,301 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/Config.in
+@@ -0,0 +1,28 @@
++config BR2_PACKAGE_CEPH
++	bool "ceph"
++	depends on BR2_PACKAGE_HAS_UDEV # gudev
++	depends on BR2_TOOLCHAIN_HAS_THREADS # glib2
++#	depends on BR2_USE_WCHAR # glib2
++	depends on BR2_USE_MMU # glib2, gudev
++#	select BR2_PACKAGE_LIBGLIB2
++#	select BR2_PACKAGE_LIBGUDEV
++	select BR2_PACKAGE_CUNIT
++	select BR2_PACKAGE_LIBAIO
++	select BR2_PACKAGE_SNAPPY
++	select BR2_PACKAGE_KEYUTILS
++	select BR2_PACKAGE_JEMALLOC
++	select BR2_PACKAGE_LIBCURL
++	select BR2_PACKAGE_LIBNSS
++	select BR2_PACKAGE_HOST_PYTHON_CYTHON
++	select BR2_PACKAGE_OATH
++	select BR2_PACKAGE_BASH
++	select BR2_PACKAGE_RABBITMQ_C
++	select BR2_PACKAGE_HOST_CMAKE
++	select BR2_PACKAGE_ICU
++	select BR2_PACKAGE_PYTHON_PTABLE
++	select BR2_PACKAGE_PYTHON_HASHLIB
++	help
++	  Ceph - a distributed storage manager
++comment "ceph needs lots of stuff to build"
++#	depends on !BR2_PACKAGE_HAS_UDEV || !BR2_TOOLCHAIN_HAS_THREADS || \
++#		!BR2_USE_WCHAR
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/ceph.mk
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/ceph.mk
+@@ -0,0 +1,73 @@
++################################################################################
++#
++# ceph
++#
++################################################################################
++
++#CEPH_VERSION = 14.2.2
++#CEPH_SITE = https://download.ceph.com/tarballs
++CEPH_VERSION = solarflare
++CEPH_SITE_METHOD=git
++CEPH_GIT_SUBMODULES=y
++#CEPH_SITE = /project/ci/git/ceph.git
++CEPH_SITE = /project/ci/git/ceph.git
++
++CEPH_SOURCE = ceph-$(CEPH_VERSION).tar.gz
++
++CEPH_SUPPORTS_IN_SOURCE_BUILD = NO
++
++CEPH_INSTALL_STAGING = YES
++
++CEPH_CONF_OPTS += -DWITH_MANPAGE=OFF
++
++CEPH_CONF_OPTS += -DCMAKE_BUILD_TYPE=release
++CEPH_CONF_OPTS += -DENABLE_GIT_VERSION=OFF
++
++#CEPH_CONF_OPTS += --debug-output
++
++#CEPH_CONF_OPTS += -DCMAKE_VERBOSE_MAKEFILE=ON
++#CEPH_CONF_OPTS += -DWITH_PYTHON2=OFF -DWITH_PYTHON3=ON -DMGR_PYTHON_VERSION=3
++
++CEPH_CONF_OPTS +=      -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_GSSAPI=OFF -DWITH_FUSE=OFF \
++        -DWITH_XFS=OFF -DWITH_ZFS=OFF -DWITH_BLUESTORE=OFF -DWITH_SPDK=OFF \
++        -DWITH_PMEM=OFF -DWITH_BLUEFS=OFF -DWITH_QATZIP=OFF \
++        -DWITH_LIBCEPHFS=OFF -DWITH_KVS=OFF -DWITH_KRBD=OFF \
++        -DWITH_LEVELDB=OFF -DWITH_BROTLI=OFF -DWITH_LZ4=OFF \
++        -DWITH_CEPH_DEBUG_MUTEX=OFF -DWITH_XIO=OFF -DWITH_DPDK=OFF \
++        -DWITH_BLKIN=OFF -DWITH_RADOSGW=OFF -DWITH_CEPHFS=OFF -DWITH_MGR=OFF \
++        -DWITH_EVENTTRACE=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF \
++        -DWITH_TESTS=OFF -DWITH_FIO=OFF -DWITH_SYSTEM_FIO=OFF \
++        -DWITH_SYSTEM_ROCKSDB=OFF -DWITH_SEASTAR=OFF \
++        -DWITH_MGR_DASHBOARD_FRONTEND=OFF -DWITH_SYSTEM_NPM=OFF \
++        -DWITH_SYSTEMD=OFF -DWITH_GRAFANA=OFF -DWITH_CEPHFS_JAVA=OFF \
++        -DWITH_CEPHFS_SHELL=OFF -DWITH_TOOLS=OFF -DWITH_OSD=OFF \
++        -DWITH_MON=OFF -DWITH_KV=OFF -DWITH_OS=OFF -DWITH_PYTHON=OFF
++
++#CEPH_LICENSE = GPL-2.0
++CEPH_LICENSE_FILES = COPYING
++
++CEPH_DEPENDENCIES = host-pkgconf host-cmake bash udev cunit libaio snappy keyutils jemalloc libcurl libnss host-python-cython lz4 oath rabbitmq-c icu
++
++#define CEPH_INSTALL_INIT_SYSV
++#	$(INSTALL) -D -m 0755 package/ceph/S70ceph $(TARGET_DIR)/etc/init.d/S70ceph
++#endef
++
++# Installation hooks:
++#define CEPH_CLEAN_INSTALL_DOC
++#	$(RM) -fr $(TARGET_DIR)/usr/share/ceph/Doc
++#endef
++#CEPH_POST_INSTALL_TARGET_HOOKS += CEPH_CLEAN_INSTALL_DOC
++
++#define CEPH_INSTALL_LIBCRC32
++#	$(RM) -f $(TARGET_DIR)/usr/share/ceph/ceph*.cmake
++#endef
++#CEPH_POST_INSTALL_TARGET_HOOKS += CEPH_INSTALL_LIBCRC32
++
++define CEPH_INSTALL_CONF_FILE
++	mkdir -p $(TARGET_DIR)/etc/ceph
++	cp package/ceph/ceph.conf $(TARGET_DIR)/etc/ceph/ceph.conf
++endef
++CEPH_POST_INSTALL_TARGET_HOOKS += CEPH_INSTALL_CONF_FILE
++
++
++$(eval $(cmake-package))
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/builddpdk.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/builddpdk.patch
+@@ -0,0 +1,19 @@
++--- ceph-14.2.2/cmake/modules/BuildDPDK.cmake-oeg	2019-07-17 16:12:36.000000000 +0100
+++++ ceph-14.2.2/cmake/modules/BuildDPDK.cmake	2019-08-13 12:46:07.118360350 +0100
++@@ -27,6 +27,7 @@
++     set(machine "armv8a")
++     set(machine_tmpl "armv8a")
++     set(rte_cflags "-march=armv8-a+crc")
+++    set(CROSS "aarch64-linux-gnu-")
++   elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "(powerpc|ppc)64")
++     set(arch "ppc_64")
++     set(machine "power8")
++@@ -75,7 +76,7 @@
++   ExternalProject_Add(dpdk-ext
++     SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/spdk/dpdk
++     CONFIGURE_COMMAND ${make_cmd} config O=${dpdk_dir} T=${target}
++-    BUILD_COMMAND ${make_cmd} O=${dpdk_dir} CC=${CMAKE_C_COMPILER} EXTRA_CFLAGS=-fPIC
+++    BUILD_COMMAND ${make_cmd} O=${dpdk_dir} CROSS=${CROSS} CC=${CMAKE_C_COMPILER} EXTRA_CFLAGS=-fPIC
++     BUILD_IN_SOURCE 1
++     INSTALL_COMMAND "true")
++   ExternalProject_Add_Step(dpdk-ext patch-config
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/distutils.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/distutils.patch
+@@ -0,0 +1,28 @@
++--- ceph-14.2.2/cmake/modules/Distutils.cmake-org	2019-07-17 16:12:36.000000000 +0100
+++++ ceph-14.2.2/cmake/modules/Distutils.cmake	2019-08-15 09:30:32.427760530 +0100
++@@ -17,9 +17,9 @@
++   install(CODE "
++     set(options --prefix=${CMAKE_INSTALL_PREFIX})
++     if(DEFINED ENV{DESTDIR})
++-      if(EXISTS /etc/debian_version)
++-        list(APPEND options --install-layout=deb)
++-      endif()
+++#      if(EXISTS /etc/debian_version)
+++#        list(APPEND options --install-layout=deb)
+++#      endif()
++       list(APPEND options
++         --root=\$ENV{DESTDIR}
++         --single-version-externally-managed)
++@@ -90,9 +90,9 @@
++
++     set(options --prefix=${CMAKE_INSTALL_PREFIX})
++     if(DEFINED ENV{DESTDIR})
++-      if(EXISTS /etc/debian_version)
++-        list(APPEND options --install-layout=deb)
++-      endif()
+++#      if(EXISTS /etc/debian_version)
+++#        list(APPEND options --install-layout=deb)
+++#      endif()
++       list(APPEND options --root=\$ENV{DESTDIR})
++     else()
++       list(APPEND options --root=/)
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/kvtool.cc.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/kvtool.cc.patch
+@@ -0,0 +1,33 @@
++--- ceph-solarflare/src/tools/kvstore_tool.cc.orig	2019-09-12 10:50:20.000000000 +0100
+++++ ceph-solarflare/src/tools/kvstore_tool.cc	2019-11-05 10:12:08.180685149 +0000
++@@ -9,6 +9,8 @@
++ #include "common/url_escape.h"
++ #include "include/buffer.h"
++ #include "kv/KeyValueDB.h"
+++#include "global/global_context.h"
+++
++ 
++ StoreTool::StoreTool(const string& type,
++ 		     const string& path,
++@@ -43,6 +45,7 @@
++   }
++ }
++ 
+++#ifdef WITH_BLUESTORE
++ int StoreTool::load_bluestore(const string& path, bool need_open_db)
++ {
++     auto bluestore = new BlueStore(g_ceph_context, path);
++@@ -54,11 +57,12 @@
++     db = decltype(db){db_ptr, Deleter(bluestore)};
++     return 0;
++ }
+++#endif
++ 
++ uint32_t StoreTool::traverse(const string& prefix,
++                              const bool do_crc,
++                              const bool do_value_dump,
++-                             ostream *out)
+++                             std::ostream *out)
++ {
++   KeyValueDB::WholeSpaceIterator iter = db->get_wholespace_iterator();
++ 
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/kvtool.h.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/kvtool.h.patch
+@@ -0,0 +1,20 @@
++--- ceph-14.2.2/src/tools/kvstore_tool.h-org	2019-08-13 17:47:22.914701759 +0100
+++++ ceph-14.2.2/src/tools/kvstore_tool.h	2019-08-13 18:35:55.823793681 +0100
++@@ -15,6 +15,8 @@
++
++ class KeyValueDB;
++
+++#include "kv/KeyValueDB.h"
+++
++ class StoreTool
++ {
++ #ifdef WITH_BLUESTORE
++@@ -48,7 +50,7 @@
++   uint32_t traverse(const std::string& prefix,
++                     const bool do_crc,
++                     const bool do_value_dump,
++-                    ostream *out);
+++                    std::ostream *out);
++   void list(const std::string& prefix,
++ 	    const bool do_crc,
++ 	    const bool do_value_dump);
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/ceph.conf
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/ceph.conf
+@@ -0,0 +1,4 @@
++# this a placeholder config file for ceph
++
++# dummy key/value pair in global section
++test=test
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/build_boost.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/build_boost.patch
+@@ -0,0 +1,13 @@
++--- ceph-solarflare/cmake/modules/BuildBoost.cmake.orig	2019-09-12 10:50:20.000000000 +0100
+++++ ceph-solarflare/cmake/modules/BuildBoost.cmake	2019-11-07 10:09:36.638653578 +0000
++@@ -169,8 +169,8 @@
++   ExternalProject_Add(Boost
++     ${source_dir}
++     PATCH_COMMAND
++-      patch -d <SOURCE_DIR> -p1 < ${CMAKE_MODULE_PATH}/boost_context_asm_arm_syntax_unified.patch &&
++-      patch -d <SOURCE_DIR> -p1 < ${CMAKE_MODULE_PATH}/boost_lockfree_queue_valgrind_error.patch
+++      patch -d <SOURCE_DIR> -p1 < ${CMAKE_SOURCE_DIR}/cmake/modules/boost_context_asm_arm_syntax_unified.patch &&
+++      patch -d <SOURCE_DIR> -p1 < ${CMAKE_SOURCE_DIR}/cmake/modules/boost_lockfree_queue_valgrind_error.patch
++     CONFIGURE_COMMAND CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} ${configure_command}
++     BUILD_COMMAND CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} ${build_command}
++     BUILD_IN_SOURCE 1
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/libcrc32.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/libcrc32.patch
+@@ -0,0 +1,15 @@
++--- ceph-solarflare/src/common/CMakeLists.txt-orig	2019-09-12 10:50:20.000000000 +0100
+++++ ceph-solarflare/src/common/CMakeLists.txt	2019-11-12 18:04:13.540999566 +0000
++@@ -176,6 +176,12 @@
++ target_link_libraries(crc32
++   arch)
++ 
+++install(
+++  TARGETS crc32
+++  LIBRARY
+++  DESTINATION ${CEPH_INSTALL_PKGLIBDIR}
+++  NAMELINK_SKIP)
+++
++ add_library(common_utf8 STATIC utf8.c)
++ 
++ if(WITH_LIBCEPHFS OR WITH_KRBD)
+Index: buildroot-2019.08.1-zcu102-light/package/ceph/python.patch
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/ceph/python.patch
+@@ -0,0 +1,12 @@
++--- ceph-solarflare/src/CMakeLists.txt-orig	2019-09-12 10:50:20.000000000 +0100
+++++ ceph-solarflare/src/CMakeLists.txt	2019-11-14 11:38:49.695466211 +0000
++@@ -243,6 +243,9 @@
++   set(Python_EXECUTABLE ${Python3_EXECUTABLE})
++ endif()
++ 
+++# override Python_EXECUTABLE to point to /usr/bin/python at runtime, not full build system path to buildroot's interpreter
+++set(Python_EXECUTABLE "/usr/bin/env python")
+++
++ # sort out which allocator to use
++ if(ALLOCATOR STREQUAL "tcmalloc")
++   set(ALLOC_LIBS gperftools::tcmalloc)

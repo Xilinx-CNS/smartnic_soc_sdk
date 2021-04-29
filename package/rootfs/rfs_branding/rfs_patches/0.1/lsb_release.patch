@@ -1,0 +1,13 @@
+Index: 0.1/etc/lsb-release
+===================================================================
+--- 0.1.orig/etc/lsb-release
++++ 0.1/etc/lsb-release
+@@ -1,4 +1,4 @@
+-DISTRIB_ID=Ubuntu
+-DISTRIB_RELEASE=20.04
+-DISTRIB_CODENAME=focal
+-DISTRIB_DESCRIPTION="Ubuntu 20.04.2 LTS"
++DISTRIB_ID=sniclinux
++DISTRIB_RELEASE=TEMP_VERSION
++DISTRIB_CODENAME=SN1000
++DISTRIB_DESCRIPTION="SNIC linux, Based on Ubuntu 20.04.2 LTS"

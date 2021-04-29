@@ -1,0 +1,78 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2019.08.1-zcu102-light/package/Config.in
+===================================================================
+--- buildroot-2019.08.1-zcu102-light.orig/package/Config.in
++++ buildroot-2019.08.1-zcu102-light/package/Config.in
+@@ -2272,4 +2272,8 @@ menu "Text editors and viewers"
+ 	source "package/vim/Config.in"
+ endmenu
+ 
++menu "Xilinx Optional Extras"
++	source "package/extraConfig.in"
++endmenu
++
+ endmenu
+Index: buildroot-2019.08.1-zcu102-light/package/extraConfig.in
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/extraConfig.in
+@@ -0,0 +1 @@
++	source "package/openvswitch/Config.in"
+Index: buildroot-2019.08.1-zcu102-light/package/openvswitch/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/openvswitch/Config.in
+@@ -0,0 +1,15 @@
++config BR2_PACKAGE_OPENVSWITCH
++	bool "openvswitch"
++	depends on BR2_TOOLCHAIN_USES_GLIBC
++	select BR2_PACKAGE_PYTHON
++	select BR2_PACKAGE_OPENSSL
++	select BR2_PACKAGE_LIBCAP_NG
++	select BR2_PACKAGE_PYTHON_SIX
++	select BR2_PACKAGE_HOST_PYTHON_SIX
++	help
++	  Openvswitch allows for the creation of network
++	  filters and insterting them into network flows.
++
++	  http://openvswitch.org
++
++comment "openvswitch needs a toolchain w/ GLIBC"
+Index: buildroot-2019.08.1-zcu102-light/package/openvswitch/openvswitch.mk
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/openvswitch/openvswitch.mk
+@@ -0,0 +1,28 @@
++################################################################################
++#
++# openvswitch
++#
++################################################################################
++
++OPENVSWITCH_VERSION = 2.12.0
++OPENVSWITCH_SITE = http://openvswitch.org/releases
++OPENVSWITCH_SOURCE = openvswitch-$(OPENVSWITCH_VERSION).tar.gz
++OPENVSWITCH_LICENSE = LGPL-2.0+, GPL-2.0+, BSD-3-Clause
++OPENVSWITCH_LICENSE_FILES = COPYING.LIB COPYING COPYING.BSD
++OPENVSWITCH_DEPENDENCIES = host-pkgconf host-python-six
++# Patching Makefile.am
++OPENVSWITCH_AUTORECONF = YES
++OPENVSWITCH_CONF_ENV = ac_cv_path_pkgprog="$(PKG_CONFIG_HOST_BINARY)"
++OPENVSWITCH_CONF_OPTS = \
++	--enable-shared
++
++ifeq ($(BR2_PACKAGE_OPENSSL),y)
++OPENVSWITCH_DEPENDENCIES += openssl
++#OPENVSWITCH_CONF_OPTS += --with-openssl=yes
++#else
++#OPENVSWITCH_CONF_OPTS += --with-openssl=no
++endif
++
++OPENVSWITCH_CONF_OPTS += PYTHON="/usr/bin/env python2"
++
++$(eval $(autotools-package))

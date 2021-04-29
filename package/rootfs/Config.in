@@ -1,0 +1,487 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_ROOTFS
+	bool "Root Filesystem"
+	default "y"
+	help
+	 Build a standard root filesystem.
+	 The root filesystem needs to be copied to the device, unpacked
+	 and possibly configured.
+
+menu "Rootfs options"
+	depends on SNIC_PACKAGE_ROOTFS
+
+choice
+prompt "Root Filesystems"
+        default SNIC_ROOTFS_DEB
+        help
+          Select rootfs.
+
+config SNIC_ROOTFS_DEB
+        bool "Debian based distribution"
+        select SNIC_ROOTFS_DEBOOTSTRAP
+
+endchoice
+
+
+if SNIC_ROOTFS_DEB
+
+config SNIC_QEMU
+	bool "Use QEMU static to complete rootfs installation"
+	depends on SNIC_ROOTFS_DEB || SNIC_ROOTFS_RPM
+	default "y"
+
+choice
+	prompt "Select Debian/Ubuntu Distro"
+	depends on SNIC_ROOTFS_DEB
+	default SNIC_ROOTFS_FOCAL
+
+
+config SNIC_ROOTFS_BUSTER
+	bool "Debian/Buster 10"
+	depends on SNIC_DEVELOPER
+	help
+	 Debian Stable = Buster
+
+config SNIC_ROOTFS_BULLSEYE
+	bool "Debian/Bullseye (unstable)"
+	depends on SNIC_DEVELOPER
+	help
+	 Debian Testing = Bullseye
+
+config SNIC_ROOTFS_SID
+	bool "Debian/SID"
+	depends on SNIC_DEVELOPER
+	help
+	 Debian Unstable = Sid.
+
+config SNIC_ROOTFS_BIONIC
+	bool "Ubuntu/Bionic 18.04 (LTS)"
+	help
+	 Ubuntu 18 LTS
+
+config SNIC_ROOTFS_FOCAL
+	bool "Ubuntu/Focal 20.04"
+	help
+	 Ubuntu Focal Fossa
+
+endchoice
+
+config SNIC_ROOTFS_USE_ALT_REPO
+	bool "Use alternative repository mirror"
+	default "n"
+	help
+	 Select an alternative mirror for faster or deterministic builds"
+
+if SNIC_ROOTFS_USE_ALT_REPO
+
+config SNIC_ROOTFS_ALT_REPO
+	string "repo URL"
+	default "http://ports.ubuntu.com/"
+	help
+	 Alternative repo url"
+
+endif
+
+#choice
+#	prompt "Select Debian/Ubuntu Builder"
+#	depends on SNIC_ROOTFS_DEB
+#	default SNIC_ROOTFS_DEBOOTSTRAP
+
+config SNIC_ROOTFS_DEBOOTSTRAP
+	bool "Build Root Filesystem using debootstrap"
+	help
+	  Create a Debian rootfilesystem using Debian packages and
+	  Debian systems. Requires debootstrap and fakeroot.
+#
+#endchoice
+
+config SNIC_ROOTFS_ARCH_AMD64
+	bool "Build arch=amd64 version"
+	default "n"
+	help
+	  Build rootfs for amd64
+
+config SNIC_ROOTFS_ISO
+	bool "Build ISO images (as well as TGZ)"
+	default "n"
+	help
+	  Build ISO images alongside tgz
+
+if SNIC_ROOTFS_DEBOOTSTRAP
+source package/rootfs/debootstrap/Config.in
+endif
+
+#if SNIC_ROOTFS_MULTISTRAP
+#source package/rootfs/multistrap/Config.in
+#endif
+
+config SNIC_ROOTFS_DEB_CUSTOM
+	bool "Create Customised derivative of base rootfs"
+	depends on SNIC_QEMU
+	default "y"
+
+if SNIC_ROOTFS_DEB_CUSTOM
+
+config SNIC_ROOTFS_KERNEL
+	bool "Install current kernel"
+	default "y"
+	select SNIC_PACKAGE_KERNEL
+	select SNIC_KERNEL_BOOT
+	help
+	  Add current kernel boot image to rootfs
+
+config SNIC_ROOTFS_KERNEL_MODULES
+	bool "Install current kernel modules"
+	default "y"
+	select SNIC_PACKAGE_KERNEL
+	select SNIC_KERNEL_MODULES
+	help
+	 This option sets your rootfs to use the modules
+	  created for the current kernel
+
+config SNIC_ROOTFS_GRUB
+	bool "Install grub boot manager"
+	depends on SNIC_EXPERIMENTAL
+	default "n"
+	help
+	  Install grub2 boot manager
+
+config SNIC_ROOTFS_GRUB_INSTALL
+	depends on SNIC_ROOTFS_GRUB
+	bool "Install grub boot binary"
+	default "n"
+	help
+	  Install grub2 boot binary
+
+config SNIC_ROOTFS_SSH_ROOT
+	bool "Permit ssh root login using password"
+	default "y"
+	help
+	  Relax security to permit password based root ssh login
+
+config SNIC_ROOTFS_INITRAMFS
+	bool "Initramfs support"
+	default "y"
+	help
+	  Install initramfs-tools
+
+config SNIC_ROOTFS_ROOT_PASSWORD
+	string "Set password for root user"
+	default "root"
+	help
+	  Set password for root user
+
+config SNIC_ROOTFS_SWAP
+	bool "Mount swap file on boot"
+	default "n"
+	depends on !SNIC_ROOTFS_OVERLAYROOT_SCRATCH
+	help
+	  Enable swap mount service in rootfs.
+config SNIC_ROOTFS_SWAP_SIZE
+	string "Swap file size in MB"
+	default "512"
+	help
+	  Size of swap file. It should be less than 2048MB.
+
+config SNIC_ROOTFS_OVERLAYROOT
+	bool "overlayroot support"
+	depends on SNIC_ROOTFS_INITRAMFS
+	default "y"
+	help
+	  Install overlayroot support in initramfs
+
+if SNIC_ROOTFS_OVERLAYROOT
+
+choice
+	prompt "Chose default overlayfs configuration"
+	default SNIC_ROOTFS_OVERLAYROOT_TMPFS
+
+config SNIC_ROOTFS_OVERLAYROOT_OFF
+	bool "overlayroot support off"
+	help
+	  Disable read-only roots
+
+config SNIC_ROOTFS_OVERLAYROOT_TMPFS
+	bool "overlayroot support via tmpfs"
+	help
+	  Read-only roots woth overlay in tmpfs
+
+config SNIC_ROOTFS_OVERLAYROOT_SCRATCH
+	bool "overlayroot support via scratch partition"
+	help
+	  Read-only roots woth overlay in tmpfs
+
+endchoice
+
+endif
+
+config SNIC_ROOTFS_DEB_SOURCES
+	bool "Create an archive of source files used to create the rootfs"
+	depends on SNIC_ROOTFS_DEB
+	default "n"
+	help
+	  Download sources for installed packages
+
+
+config SNIC_ROOTFS_KERNEL_FIT
+	bool "Install current kernel-only FIT image"
+	default "n"
+	depends on SNIC_EXPERIMENTAL
+	select SNIC_PACKAGE_FIT
+	select SNIC_FIT_KERNEL_ONLY
+	help
+	  Add current kernel boot FIT image to rootfs
+
+config SNIC_ROOTFS_EXTRA_REPOS
+	bool "Add standard additional source repos"
+	default "y"
+
+config SNIC_ROOTFS_LOCAL_APT_REPO
+	bool "Add local apt repository for deb files"
+	default "y"
+
+config SNIC_ROOTFS_CUSTOMDEB
+	bool "Copy .deb files from imports folder to rootfs"
+	default "y"
+
+config SNIC_ROOTFS_OVS
+	bool "Add openvswitch-switch package for OVS testing"
+	default "n"
+	help
+	 Add OVS packages
+
+config SNIC_ROOTFS_START_SuC_COMMS
+	bool "Auto start Suc Communication Application"
+	default "n"
+	help
+	 Add application in systemd to autostart
+
+config SNIC_ROOTFS_START_POWER_THROTTLE
+	bool "Auto start power throttle Application"
+	default "y"
+	help
+	 Add power throttle application in systemd to autostart
+
+config SNIC_ROOTFS_THERMAL_LOAD
+	bool "Add Thermal load Application"
+	default "y"
+	help
+	 Add thermal load application
+
+config SNIC_ROOTFS_SOC_THERMAL_TEST
+	bool "Add Thermal Test Applications"
+	default "y"
+	help
+	 Add thermal test client applications
+
+menu "Add Xilinx Component dependant library"
+
+config SNIC_ROOTFS_ONLOAD_DEPLIB
+	bool "Install onload dependant libraries"
+	default "y"
+	help
+	 Helps with building onload natively
+
+config SNIC_ROOTFS_CEPH_DEPLIB
+	bool "Install ceph dependant libraries"
+	default "y"
+	select SNIC_PACKAGE_CEPH
+	select SNIC_CEPH_SOURCE
+	help
+	 Helps with building ceph natively
+
+config SNIC_ROOTFS_SPDK_DEPLIB
+	bool "Install spdk dependant libraries"
+	default "y"
+	help
+	 Helps with building spdk natively
+
+config SNIC_ROOTFS_DPDKSFC_DEPLIB
+	bool "Install SFC DPDK dependant libraries"
+	default "y"
+	help
+	 Helps with building SFC DPDK natively
+
+endmenu
+menu "Source Package Selection"
+
+config SNIC_ROOTFS_KERNEL_SOURCE
+	bool "Install configured current kernel source"
+	select SNIC_PACKAGE_KERNEL
+	select SNIC_KERNEL_SOURCE
+	default "y"
+
+config SNIC_ROOTFS_KERNEL_SOURCE_BUILD
+	bool "Build current kernel source (takes a while)"
+	depends on SNIC_ROOTFS_KERNEL_SOURCE
+	default "n"
+
+if 0
+config SNIC_ROOTFS_ONLOAD_SOURCE
+	bool "Install onload source tarball to /usr/src"
+	default "n"
+	select SNIC_PACKAGE_ONLOAD
+	select SNIC_ONLOAD_DEBIAN_SOURCE
+	help
+	 Helps with test building onload natively
+
+config SNIC_ROOTFS_ONLOAD_SOURCE_CONFIGURE
+	bool "Configure onload source"
+	default "n"
+	depends on SNIC_ROOTFS_ONLOAD_SOURCE
+	help
+	 Helps resolve build dependencies
+
+config SNIC_ROOTFS_CEPH_SOURCE
+	bool "Install ceph source tarball to /usr/src"
+	default "n"
+	select SNIC_PACKAGE_CEPH
+	select SNIC_CEPH_SOURCE
+	help
+	 Helps with test building ceph natively
+
+# this requyires onload-user package to be pre-installed
+#config SNIC_ROOTFS_CEPH_SOURCE_CONFIGURE
+#	bool "Configure ceph source"
+#	default "n"
+#	depends on SNIC_ROOTFS_CEPH_SOURCE
+#	help
+#	 Helps resolve build dependencies
+
+config SNIC_ROOTFS_SPDK_SOURCE
+	bool "Install spdk source tarball to /usr/src"
+	default "n"
+	select SNIC_PACKAGE_SPDK
+	select SNIC_SPDK_SOURCE
+	help
+	 Helps with test building spdk natively
+
+config SNIC_ROOTFS_NET_DRIVER_SOURCE
+	bool "Install net driver source tarball to /usr/src"
+	default "n"
+	select SNIC_PACKAGE_NET_DRIVER
+	select SNIC_NET_DRIVER_SOURCE
+	help
+	 Helps with test building net driver natively
+
+config SNIC_ROOTFS_NET_DRIVER_SOURCE_CONFIGURE
+	bool "Configure net-driver source"
+	default "n"
+	depends on SNIC_ROOTFS_NET_DRIVER_SOURCE
+	help
+	 Helps resolve build dependencies
+endif
+endmenu
+config SNIC_ROOTFS_DIAGNOSTIC
+	bool "Add diagnostic software for hardware test"
+	default "y"
+	help
+	 Add diagnostic software and its dependent packages
+
+config SNIC_ROOTFS_DEV
+	bool "Add packages for development"
+	select SNIC_ROOTFS_EXTRA_REPOS
+	select SNIC_ROOTFS_KERNEL
+	select SNIC_ROOTFS_KERNEL_MODULES
+	select SNIC_ROOTFS_KERNEL_SOURCE
+	default "y"
+	help
+	 Add development packages
+
+config SNIC_ROOTFS_DEV_ALL
+	bool "'Kitchen Sink' - Include all packages for development for xilinx features"
+	depends on SNIC_ROOTFS_DEV
+	default "n"
+	help
+	 Add many more development packages
+
+config SNIC_ROOTFS_OKTET
+	bool "Add packages for development needed by Oktet"
+	select SNIC_ROOTFS_DEV
+	select SNIC_ROOTFS_DEV_ALL
+	select SNIC_ROOTFS_OVS
+	default "n"
+	help
+	 Add development packages required by Oktet
+
+menu "Misc options"
+
+config SNIC_ROOTFS_PPP
+	bool "Add ppp over ttyAMA0 support"
+	default "n"
+	help
+	 Add runpppd script and utilities
+
+config SNIC_ROOTFS_PPP_AUTORUN
+	bool "Run ppp over ttyAMA0 at boot"
+	depends on SNIC_ROOTFS_PPP
+	default "n"
+	help
+	 Run pppd script at boot
+
+config SNIC_ROOTFS_EXTRA_PACKAGES
+	bool "Add extra packages to rootfs"
+	default "n"
+	help
+	 Select packages for custom rootfs
+
+config SNIC_ROOTFS_EXTRA_PACKAGES_LIST
+	depends on SNIC_ROOTFS_EXTRA_PACKAGES
+	string "Package list"
+	default "git mercurial"
+
+endmenu
+
+if 0
+
+config SNIC_ROOTFS_BUILDER
+	bool "Create a rootfs for building source packages"
+	default "n"
+	select SNIC_ROOTFS_DEV
+	select SNIC_ROOTFS_LOCAL_APT_REPO
+	select SNIC_ROOTFS_ONLOAD_SOURCE
+	select SNIC_ROOTFS_SPDK_SOURCE
+	select SNIC_ROOTFS_NET_DRIVER_SOURCE
+	select SNIC_ROOTFS_CEPH_SOURCE
+	help
+	 Preloaded source for test building source
+
+config SNIC_ROOTFS_BOARD_CUSTOMISE
+	bool "Customisation for specific board"
+	default "n"
+
+endif
+
+config SNIC_ROOTFS_CLEANUP
+	bool "Remove unnecessary files from target"
+	default "y"
+	help
+	 Removes fellow traveller packages not needed by target
+
+endif
+
+endif
+
+config SNIC_ROOTFS_RPM
+	bool "Select rpm based distribution"
+	depends on (SNIC_DEVELOPER && NATIVE_BUILD)
+	default "y"
+
+if SNIC_ROOTFS_RPM
+
+menu "Select rpm distro alternatives"
+	depends on SNIC_ROOTFS_RPM
+
+source package/rootfs/rpm/Config.in
+
+endmenu
+
+endif
+
+endmenu
+

@@ -1,0 +1,10 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+#debian-deps: init sudo subversion diff quilt bzip2 texinfo bison flex wget depmod ncurses makedev fakeroot multistrap
+#
+#DEPS+=debian-deps

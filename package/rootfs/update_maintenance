@@ -1,0 +1,42 @@
+#!/usr/bin/python
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+import argparse
+import os
+import sys
+
+desc = '''
+Copyright 2020-2021 Xilinx, Inc.
+All rights reserved.
+
+Xilinx Alveo SmartNIC utility to update SoC
+
+usage: update_maintenance [-h] --image-path FILE
+
+Configure an SoC update on next reboot
+'''
+
+parser = argparse.ArgumentParser(description=desc, usage=argparse.SUPPRESS, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('--image-path', help="Packed tgz file with all required binaries(boot_mmc1.tgz)", dest='file', type = str, nargs=1, default=None, required=True)
+
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+args = parser.parse_args()
+if len(sys.argv) == 1:
+    args = parser.parse_args(['-h', ])
+else:
+    args = parser.parse_args()
+
+if args.file:
+    os.system("upgrade_soc --image-path %s" % args.file[0])

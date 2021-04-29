@@ -1,0 +1,111 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-LSDK-20.04-lx2160ardb/include/configs/lx2160a_common.h
+===================================================================
+--- u-boot-LSDK-20.04-lx2160ardb.orig/include/configs/lx2160a_common.h
++++ u-boot-LSDK-20.04-lx2160ardb/include/configs/lx2160a_common.h
+@@ -10,6 +10,9 @@
+ #include <asm/arch/config.h>
+ #include <asm/arch/soc.h>
+ 
++/* NCB required for booti ramdisk handling */
++#define CONFIG_SETUP_MEMORY_TAGS 1
++
+ #define CONFIG_REMAKE_ELF
+ #define CONFIG_FSL_LAYERSCAPE
+ #define CONFIG_GICV3
+@@ -202,7 +205,7 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ #define CONFIG_SYS_BARGSIZE		CONFIG_SYS_CBSIZE /* Boot args buffer */
+ #define CONFIG_SYS_MAXARGS		64	/* max command args */
+ 
+-#define CONFIG_SYS_BOOTM_LEN   (64 << 20)      /* Increase max gunzip size */
++#define CONFIG_SYS_BOOTM_LEN   (128 << 20)      /* Increase max gunzip size */
+ 
+ /* Initial environment variables */
+ #define XSPI_MC_INIT_CMD				\
+@@ -251,6 +254,7 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ 	"kernel_addr_r=0x81000000\0"		\
+ 	"kernelheader_size=0x40000\0"		\
+ 	"fdt_addr_r=0x90000000\0"		\
++	"fdtfile=lx2160a.dtb\0"		\
+ 	"load_addr=0xa0000000\0"		\
+ 	"kernel_size=0x2800000\0"		\
+ 	"kernel_addr_sd=0x8000\0"		\
+@@ -287,7 +291,7 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ 			" && esbc_validate 0x806c0000; "		\
+ 			"sf read 0x80d00000 0xd00000 0x100000; "	\
+ 			"env exists mcinitcmd && "			\
+-			"fsl_mc lazyapply dpl 0x80d00000; "		\
++			"fsl_mc apply dpl 0x80d00000; "		\
+ 			"run distro_bootcmd;run xspi_bootcmd; "		\
+ 			"env exists secureboot && esbc_halt;"
+ 
+@@ -297,7 +301,7 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ 		"env exists mcinitcmd && env exists secureboot "	\
+ 		" && mmc read 0x806C0000 0x3600 0x20 "		\
+ 		"&& esbc_validate 0x806C0000;env exists mcinitcmd "	\
+-		"&& fsl_mc lazyapply dpl 0x80d00000;"		\
++		"&& fsl_mc apply dpl 0x80d00000;"		\
+ 		"run distro_bootcmd;run sd_bootcmd;"		\
+ 		"env exists secureboot && esbc_halt;"
+ 
+@@ -307,16 +311,31 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ 		"env exists mcinitcmd && env exists secureboot "	\
+ 		" && mmc read 0x806C0000 0x3600 0x20 "		\
+ 		"&& esbc_validate 0x806C0000;env exists mcinitcmd "	\
+-		"&& fsl_mc lazyapply dpl 0x80d00000;"		\
++		"&& fsl_mc apply dpl 0x80d00000;"		\
+ 		"run distro_bootcmd;run emmc_bootcmd;"		\
+ 		"env exists secureboot && esbc_halt;"
+ 
++#ifdef CONFIG_USB
++#ifdef CONFIG_SCSI
++ #define BOOT_TARGET_DEVICES(func) \
++ 	func(USB, usb, 0) \
++ 	func(MMC, mmc, 0) \
++ 	func(MMC, mmc, 1) \
++ 	func(SCSI, scsi, 0) \
++ 	func(DHCP, dhcp, na)
++#else
+ #define BOOT_TARGET_DEVICES(func) \
+ 	func(USB, usb, 0) \
+ 	func(MMC, mmc, 0) \
+ 	func(MMC, mmc, 1) \
+-	func(SCSI, scsi, 0) \
+ 	func(DHCP, dhcp, na)
++#endif
++#else
++#define BOOT_TARGET_DEVICES(func) \
++	func(MMC, mmc, 0) \
++	func(MMC, mmc, 1) \
++	func(DHCP, dhcp, na)
++#endif
+ #include <config_distro_bootcmd.h>
+ 
+ #endif /* __LX2_COMMON_H */
+Index: u-boot-LSDK-20.04-lx2160ardb/include/configs/ls2080ardb.h
+===================================================================
+--- u-boot-LSDK-20.04-lx2160ardb.orig/include/configs/ls2080ardb.h
++++ u-boot-LSDK-20.04-lx2160ardb/include/configs/ls2080ardb.h
+@@ -330,11 +330,17 @@ unsigned long get_board_sys_clk(void);
+ #define CONFIG_SYS_FSL_MMC_HAS_CAPBLT_VS33
+ #endif
+ 
++#ifdef CONFIG_USB
+ #define BOOT_TARGET_DEVICES(func) \
+ 	func(USB, usb, 0) \
+ 	func(MMC, mmc, 0) \
+ 	func(SCSI, scsi, 0) \
+ 	func(DHCP, dhcp, na)
++#else
++#define BOOT_TARGET_DEVICES(func) \
++	func(MMC, mmc, 0) \
++	func(DHCP, dhcp, na)
++#endif
+ #include <config_distro_bootcmd.h>
+ 
+ #ifdef CONFIG_TFABOOT

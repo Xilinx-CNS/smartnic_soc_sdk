@@ -1,0 +1,285 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+# Copyright 2018 NXP
+#
+# SPDX-License-Identifier:     BSD-3-Clause
+#
+# U-Boot script to flash image to 'current' or 'other' bank of NOR/QSPI flash device for Layerscape platforms
+#
+
+#
+# Hacked by NCB for lx2160a programming sd card /dev/mmcblk0
+#
+
+# NCB
+#board=lx2160ardb
+
+# NCB
+#img=mcfw
+
+# user can set img variable to just flash single image
+if test -z "$img"; then
+    echo You must setenv img variable!
+    echo To flash single image: setenv img to bl2, fip, mcfw, mcdpc, mcdpl, fman, qe, pfe, phy, dtb, linux_itb
+    echo To flash all images: setenv img to all
+    echo If necessary, you can override the default setting for variable: bd_part, flash_type, bl2_img,
+    echo fip_img, dtb_img, linux_itb_img, qe_img, fman_img, phy_img, mcfw_img, mcdpl_img, mcdpc_img
+    exit
+fi
+
+# Set default image file names which can be overrided in uboot prompt by users
+# NCB image_path=/flash_images/$board
+image_path=/sbin/firmware
+#image_path=firmware
+
+# utility to program $1 into /dev/mmcblk0 at $2 offset by 8 blocks
+flashit() {
+    echo "hex offset is $2"
+    offset=$(($2))
+    echo "dec offset is $offset"
+    offset=$(expr $offset / 512)
+    echo "dec block offset is $offset"
+    if test -r $1; then
+      echo "Writing $1 to /dev/mmcblk0 card at offset $offset ..."
+      dd if=$1 of=/dev/mmcblk0 bs=512 seek=$offset
+    else
+      echo "Cannot find $1"
+      exit
+    fi
+}
+
+if test $board = lx2160ardb; then
+    if test -z "$bl2_img"; then
+	bl2_img=$image_path/atf/bl2_sd.pbl	
+    fi
+    if test -z "$fip_img"; then
+	fip_img=$image_path/atf/fip_uboot.bin
+    fi
+    if test -z "$mcfw_img"; then
+# NCB	mcfw_img=$image_path/mc_10.12.0_lx2160a.itb
+	mcfw_img=$image_path/mc/mc_10.14.0_lx2160a.itb
+    fi
+    if test -z "$mcdpc_img"; then
+	mcdpc_img=$image_path/mc/dpc-usxgmii.dtb
+    fi
+    if test -z "$mcdpl_img"; then
+	mcdpl_img=$image_path/mc/dpl-eth.19.dtb
+    fi
+    if test -z "$phy_img"; then
+        phy_img=/flash_images/inphi/in112525-phy-ucode.txt
+    fi
+    if test -z "$dtb_img"; then
+	dtb_img=/fsl-lx2160a-rdb.dtb
+    fi
+    if test -z "$flash_type"; then
+	flash_type=flexspi_nor
+    fi
+fi
+
+if test -z "$linux_itb_img"; then
+	linux_itb_img=/lsdk_linux_arm64_LS_tiny.itb
+fi
+
+    addr_bl2=0x0
+    addr_fip=0x00100000
+    addr_ddr=0x00800000
+    addr_fman=0x00900000
+    addr_qe=0x00940000
+    addr_eth=0x00980000
+    addr_mcfw=0x00a00000
+    addr_mcdpl=0x00d00000
+    addr_mcdpc=0x00e00000
+    addr_dtb=0x00f00000
+    addr_kernel=0x01000000
+
+#    addr_bl2=0x0
+#    addr_fip=0x001000
+#    addr_ddr=0x008000
+#    addr_fman=0x009000
+#    addr_qe=0x009400
+#    addr_eth=0x009800
+#    addr_mcfw=0x00a000
+#    addr_mcdpl=0x00d000
+#    addr_mcdpc=0x00e000
+#    addr_dtb=0x00f000
+#    addr_kernel=0x010000
+
+
+echo ******************* NCB hacked version to update mmc card image ********************
+echo Starting to flash $bank bank of $flash_type flash according to LSDK standard flash layout:
+echo Using img       = $img
+
+
+if test "$img" = bl2; then
+    # RCW+PBL+BL2 in case of with TF-A
+    echo Using addr_bl2 $addr_bl2 for bl2_img $bl2_img
+#    if load $bd_type $bd_part $img_load_addr $bl2_img && $pt_off_cmd $addr_bl2 $efs && $erase_cmd $addr_bl2 +$filesize && $write_cmd $img_load_addr $addr_bl2 $filesize; then
+    if flashit $bl2_img $addr_bl2; then
+	echo Success: flashed $bl2_img
+    else
+	echo Failed to flash $bl2_img
+    fi
+    exit
+elif test "$img" = fip; then
+    # TF-A fip image
+    echo Using addr_fip $addr_fip for fip_img $fip_img
+#    if load $bd_type $bd_part $img_load_addr $fip_img && $pt_off_cmd $addr_fip $efs && $erase_cmd $addr_fip +$filesize && $write_cmd $img_load_addr $addr_fip $filesize; then
+    if flashit $fip_img $addr_fip; then
+	echo Success: flashed $fip_img
+    else
+	echo Failed to flash $fip_img
+    fi
+    exit
+elif test "$img" = mcfw; then
+    # DPAA2 MC firmware
+    echo Using addr_mcfw $addr_mcfw for mcfw_img $mcfw_img
+    if flashit $mcfw_img $addr_mcfw; then
+#    if load $bd_type $bd_part $img_load_addr $mcfw_img && $pt_off_cmd $addr_mcfw $efs && $erase_cmd $addr_mcfw +$filesize && $write_cmd $img_load_addr $addr_mcfw $filesize; then
+	echo Success: flashed $mcfw_img to $addr_mcfw
+    else
+	echo Failed to flash $mcfw_img
+    fi
+    exit
+elif test "$img" = mcdpl; then
+    # DPAA2 MC DPL
+    echo Using addr_mcdpl $addr_mcdpl for mcdpl_img $mcdpl_img
+    if flashit $mcdpl_img $addr_mcdpl; then
+#    if load $bd_type $bd_part $img_load_addr $mcdpl_img && $pt_off_cmd $addr_mcdpl $efs && $erase_cmd $addr_mcdpl +$filesize && $write_cmd $img_load_addr $addr_mcdpl $filesize; then
+	echo Success: flashed $mcdpl_img to $addr_mcdpl
+    else
+	echo Failed to flash $mcdpl_img
+    fi
+    exit
+elif test "$img" = mcdpc; then
+    # DPAA2 MC DPC
+    echo Using addr_mcdpc $addr_mcdpc for mcdpc_img $mcdpc_img
+#    if load $bd_type $bd_part $img_load_addr $mcdpc_img && $pt_off_cmd $addr_mcdpc $efs && $erase_cmd $addr_mcdpc +$filesize && $write_cmd $img_load_addr $addr_mcdpc $filesize; then
+    if flashit $mcdpc_img $addr_mcdpc; then
+	echo Success: flashed $mcdpc_img to $addr_mcdpc
+    else
+	echo Failed to flash $mcdpc_img
+    fi
+    exit
+elif test "$img" = fman; then
+    # DPAA1 FMan ucode firmware
+    echo Using addr_fman $addr_fman for fman_img $fman_img
+#    if load $bd_type $bd_part $img_load_addr $fman_img && $pt_off_cmd $addr_fman $efs && $erase_cmd $addr_fman +$filesize && $write_cmd $img_load_addr $addr_fman $filesize; then
+    if flashit $fman_img $addr_fman; then
+	echo Success: flashed $fman_img
+    else
+	echo Failed to flash $fman_img
+    fi
+    exit
+elif test "$img" = phy; then
+    # Cortina PHY firmware
+    echo Using addr_eth $addr_eth for phy_img $phy_img
+    if flashit $phy_img $addr_eth; then
+#    if load $bd_type $bd_part $img_load_addr $phy_img && $pt_off_cmd $addr_eth $efs && $erase_cmd $addr_eth +$filesize && $write_cmd $img_load_addr $addr_eth $filesize; then
+	echo Success: flashed $phy_img
+    else
+	echo Failed to flash $phy_img
+    fi
+    exit
+elif test "$img" = qe; then
+    # QE ucode firmware
+    echo Using addr_qe $addr_qe for qe_img $qe_img
+#    if load $bd_type $bd_part $img_load_addr $qe_img && $pt_off_cmd $addr_qe $efs && $erase_cmd $addr_qe +$filesize && $write_cmd $img_load_addr $addr_qe $filesize; then
+    if flashit $qe_img $addr_qe; then
+    	echo Success: flashed $qe_img
+    else
+	echo Failed to flash $qe_img
+    fi
+    exit
+elif test "$img" = dtb; then
+    # DTB image
+    echo Using addr_dtb $addr_dtb for dtb_img $dtb_img
+#    echo "222 $pt_off_cmd $addr_dtb $efs $erase_cmd $addr_dtb +$filesize"
+#    if load $bd_type $bd_part $img_load_addr $dtb_img && $pt_off_cmd $addr_dtb $efs && $erase_cmd $addr_dtb +$filesize && $write_cmd $img_load_addr $addr_dtb $filesize; then
+    if flashit $dtb_img $addr_dtb; then
+    	echo Success: flashed $dtb_img
+    else
+	echo Failed to flash $dtb_img
+    fi
+    exit
+elif test "$img" = linux_itb; then
+    # linux itb image
+    echo Using addr_kernel $addr_kernel for linux_itb_img $linux_itb_img
+#    if load $bd_type $bd_part $img_load_addr $linux_itb_img && $pt_off_cmd $addr_kernel $efs && $erase_cmd $addr_kernel +$filesize && $write_cmd $img_load_addr $addr_kernel $filesize; then
+    if flashit $linux_itb_img $addr_kernel; then
+	echo Success: flashed $linux_itb_img
+    else
+	echo Failed to flash $linux_itb_img
+    fi
+    exit
+elif test "$img" != all; then
+    echo ERROR: invalid $img for img!
+    exit
+fi
+
+echo "Option 'all' is not yet supported, one at a time please ..."
+exit
+
+# ATF BL2: RCW+PBI+BL2
+#if load $bd_type $bd_part $img_load_addr $bl2_img && $pt_off_cmd $addr_bl2 $efs && $erase_cmd $addr_bl2 +$filesize && $write_cmd $img_load_addr $addr_bl2 $filesize; then
+#    echo Success: flashed $bl2_img to $addr_bl2
+#else
+#    echo Failed to flash $bl2_img
+#fi
+
+# ATF FIP
+#if load $bd_type $bd_part $img_load_addr $fip_img && $pt_off_cmd $addr_fip $efs && $erase_cmd $addr_fip +$filesize && $write_cmd $img_load_addr $addr_fip $filesize; then
+#    echo Success: flashed $fip_img to $addr_fip
+#else
+#    echo Failed to flash $fip_img
+#fi
+
+# Ethernet PHY firmware
+#    if load $bd_type $bd_part $img_load_addr $phy_img && $pt_off_cmd $addr_eth $efs && $erase_cmd $addr_eth +$filesize && $write_cmd $img_load_addr $addr_eth $filesize; then
+#	echo Success: flashed $phy_img to $addr_eth
+#    else
+#	echo Failed to flash $phy_img
+#    fi
+
+# DPAA2 MC firmware
+#    if load $bd_type $bd_part $img_load_addr $mcfw_img && $pt_off_cmd $addr_mcfw $efs && $erase_cmd $addr_mcfw +$filesize && $write_cmd $img_load_addr $addr_mcfw $filesize; then
+#	echo Success: flashed $mcfw_img to $addr_mcfw
+#    else
+#	echo Failed to flash $mcfw_img
+#    fi
+#
+# DPAA2 DPL firmware
+#    if load $bd_type $bd_part $img_load_addr $mcdpl_img && $pt_off_cmd $addr_mcdpl $efs && $erase_cmd $addr_mcdpl +$filesize && $write_cmd $img_load_addr $addr_mcdpl $filesize; then
+#	echo Success: flashed $mcdpl_img to $addr_mcdpl
+#    else
+#	echo Failed to flash $mcdpl_img
+#    fi
+#
+# DPAA2 DPC firmware
+#    if load $bd_type $bd_part $img_load_addr $mcdpc_img && $pt_off_cmd $addr_mcdpc $efs && $erase_cmd $addr_mcdpc +$filesize && $write_cmd $img_load_addr $addr_mcdpc $filesize; then
+#	echo Success: flashed $mcdpc_img to $addr_mcdpc
+#    else
+#	echo Failed to flash $mcdpc_img
+#    fi
+
+
+# DTB
+    if load $bd_type $bd_part $img_load_addr $dtb_img && $pt_off_cmd $addr_dtb $efs && $erase_cmd $addr_dtb +$filesize && $write_cmd $img_load_addr $addr_dtb $filesize; then
+	echo Success: flashed $dtb_img to $addr_dtb
+    else
+	echo Failed to flash $dtb_img
+    fi
+
+# Kernel itb
+    if load $bd_type $bd_part $img_load_addr $linux_itb_img && $pt_off_cmd $addr_kernel $efs && $erase_cmd $addr_kernel +$filesize && $write_cmd $img_load_addr $addr_kernel $filesize; then
+	echo Success: flashed $linux_itb_img to $addr_kernel
+    else
+	echo Failed to flash $linux_itb_img
+    fi
+
+echo Completed!
+
+

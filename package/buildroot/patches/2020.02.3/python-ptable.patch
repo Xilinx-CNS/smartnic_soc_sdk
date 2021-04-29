@@ -1,0 +1,44 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2019.08.1-zcu102-light/package/python-ptable/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/python-ptable/Config.in
+@@ -0,0 +1,6 @@
++config BR2_PACKAGE_PYTHON_PTABLE
++	bool "python-ptable"
++	help
++	  PTable is a fork of PrettyTable used as source for Debian packages
++	  perform pretty table output inspired by ASCIIART
++
+Index: buildroot-2019.08.1-zcu102-light/package/python-ptable/python-ptable.mk
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/python-ptable/python-ptable.mk
+@@ -0,0 +1,22 @@
++################################################################################
++#
++# python-ptable
++#
++################################################################################
++
++PYTHON_PTABLE_VERSION = 0.9
++PYTHON_PTABLE_SOURCE = $(PYTHON_PTABLE_VERSION).zip
++PYTHON_PTABLE_SITE = https://github.com/kxxoling/PTable/archive/release
++#PYTHON_PYASN_LICENSE = BSD-2-Clause
++#PYTHON_PYASN_LICENSE_FILES = LICENSE.txt
++PYTHON_PTABLE_SETUP_TYPE = setuptools
++
++define PYTHON_PTABLE_EXTRACT_CMDS
++	$(UNZIP) -d $(@D) $(PYTHON_PTABLE_DL_DIR)/$(PYTHON_PTABLE_SOURCE)
++	mv $(@D)/PTable-release-$(PYTHON_PTABLE_VERSION)/* $(@D)/
++	mv $(@D)/PTable-release-$(PYTHON_PTABLE_VERSION)/.git* $(@D)/
++	mv $(@D)/PTable-release-$(PYTHON_PTABLE_VERSION)/.*.yml $(@D)/
++	rmdir $(@D)/PTable-release-$(PYTHON_PTABLE_VERSION)
++endef
++
++$(eval $(python-package))

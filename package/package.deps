@@ -1,0 +1,293 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+ROOTCMD=sudo
+
+#DNFOPTIONS=--quiet --assumeyes
+DNFOPTIONS=--assumeyes
+DNF=/usr/bin/dnf
+
+#YUMOPTIONS=--quiet --assumeyes
+YUMOPTIONS=--assumeyes
+YUM=/usr/bin/yum
+
+DEBAPTOPTIONS=--quiet --assume-yes
+DEBAPTOPTIONSFORCE=--quiet --assume-yes --force-yes
+#APTITUDE=/usr/bin/aptitude
+APTITUDE=/usr/bin/apt
+
+ifeq ($(RPM),y)
+ifneq ($(wildcard $(DNF)),)
+INSTALL_PACKAGE=$(ROOTCMD) $(DNF) $(DNFOPTIONS) install
+else
+INSTALL_PACKAGE=$(ROOTCMD) $(YUM) $(YUMOPTIONS) install
+endif
+endif
+
+ifeq ($(DEB),y)
+#this lot allows installing without bothering you about emdebian archive key
+INSTALL_PACKAGE=$(ROOTCMD) $(APTITUDE) $(DEBAPTOPTIONS) install
+endif
+
+#
+#	if [ -e $(OS_VER) ]; then \
+#	dpkg -s $@ >/dev/null 2>&1 \
+##	then \
+##	    echo "E: Missing $@"; exit 99; \
+##	else \
+##	    echo "I: Installing $@";\
+##	    $(INSTALL_PACKAGE) $@; \
+#	else \
+#	    echo "E: Requires debian based OS"; exit 99; \
+#	fi
+
+init:
+	@echo I: Check and install build dependencies
+
+openoffice.org:
+	@#testing if $@ is installed - install it if the build stops here
+	@$@ --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+
+cvs quilt diff gcc fakeroot bison flex wget bc tar make sed bash patch gzip perl cpio python rsync file g++:
+	@#testing if $@ is installed - install it if the build stops here
+	@$@ --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+/usr/include/openssl/ui.h:
+	@test -e /usr/include/openssl/aes.h || if [ -e $(OS_VER) ]; then \
+	$(INSTALL_PACKAGE) libssl-dev; else echo "E: Missing libssl-dev"; exit 99; fi
+
+libssl-dev: /usr/include/openssl/ui.h
+
+/usr/include/sys/capability.h:
+	if [ -e $(OS_VER) ]; then \
+	$(INSTALL_PACKAGE) libcap-dev; else echo "E: Missing libcap-dev"; exit 99; fi
+
+#libcap-dev: /usr/include/sys/capability.h
+
+crossbuild-essential-$(ARCH) build-essential devscripts libcap-dev libmnl-dev python2-dev:
+	@if dpkg -s $@:$(HOST_ARCH) >/dev/null 2>&1; then \
+	  echo "package $@:$(HOST_ARCH) installed"; \
+	else \
+	  $(INSTALL_PACKAGE) $@:$(HOST_ARCH); \
+	fi
+
+%-cross-$(ARCH):
+	package=$(subst -cross-$(ARCH),,$@); \
+	if dpkg -s $$package:$(ARCH) >/dev/null 2>&1; then \
+	  echo "package $$package:$(ARCH) installed"; \
+	else \
+	  $(INSTALL_PACKAGE) $$package:$(ARCH); \
+	fi
+
+tclsh:
+	@#testing if $@ is installed - install it if the build stops here
+	@exec=`which $@`; \
+	[ -x "$$exec" ] || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) tcl; else echo "E: Missing $@"; exit 99; fi
+
+dtc:
+	@#testing if $@ is installed - install it if the build stops here
+	@exec=`which $@`; \
+	[ -x "$$exec" ] || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) device-tree-compiler; else echo "E: Missing $@"; exit 99; fi
+
+bzip2 unzip iasl unifdef:
+	@#testing if $@ is installed - install it if the build stops here
+	@exec=`which $@`; \
+	[ -x "$$exec" ] || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+
+ifeq ($(DEB),y)
+which_PACKAGE=debianutils
+else
+which_PACKAGE=which
+endif
+
+ifeq ($(DEB),y)
+mkimage_PACKAGE=u-boot-tools
+else
+mkimage_PACKAGE=uboot-tools
+endif
+
+which mkimage:
+	@#testing if $@ is installed - install it if the build stops here
+	@exec=`which $@`; \
+	[ -x "$$exec" ] || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $($@_PACKAGE); else echo "E: Missing $@"; exit 99; fi
+
+sudo:
+	@#testing if sudo is installed - install it if the build stops here
+#	@sudo -V > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+#		then $(APTITUDE) $(DEBAPTOPTIONS) install $@; \
+#		else echo "E: Missing $@"; exit 99; fi
+	@sudo -V > /dev/null 2>&1 || (echo "E: Missing $@"; exit 99;)
+
+subversion:
+	@#testing if subversion is installed - install it if the build stops here
+	@svn --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing svn"; exit 99; fi
+
+depmod:
+	@#testing if module-init-tools is installed - install it if the build stops here
+	@/sbin/depmod --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) module-init-tools; else echo "E: Missing $@"; \
+		exit 99; fi
+
+texinfo: 
+	@#testing if texinfo is installed - install it if the build stops here
+	@makeinfo --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing makeinfo"; exit 99; fi
+
+ncurses-dev:
+	@#testing if ncurses-dev is installed - install it if the build stops here
+	@test -e /usr/include/ncurses.h || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) libncurses-dev; else echo "E: Missing $@"; \
+		exit 99; fi
+
+uuid-dev:
+	@#testing if uuid-dev is installed - install it if the build stops here
+	@test -e /usr/include/uuid/uuid.h || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) uuid-dev; else echo "E: Missing $@"; \
+		exit 99; fi
+
+makedev:
+	@#testing if makedev is installed - install it if the build stops here
+	@test -e /sbin/MAKEDEV || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) makedev; else echo "E: Missing $@"; \
+		exit 99; fi
+
+libc6-dev:
+	@#testing if libc6-dev-i386 is installed - install it if the build stops here
+	@test -e /usr/include/gnu/stubs-32.h || if [ -e $(OS_VER) ]; \
+		then if [ x$(dpkg --print-architecture) = xamd64 ]; \
+		then $(INSTALL_PACKAGE) libc6-dev-i386; else $(INSTALL_PACKAGE) libc6-dev; fi ;\
+		else echo "E: Missing $@ from libc6-dev[-i386] package"; \
+		exit 99; fi
+
+git:
+	@#testing if git is installed - install it if the build stops here
+	@git --version 1> /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) git-core; else echo "E: Missing $@"; \
+		exit 99; fi
+
+debhelper:
+	@#testing if $@ is installed - install it if the build stops here
+	@test -x /usr/bin/dh_builddeb > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+                then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+bitbake texi2html help2man chrpath gawk:
+	@#testing if $@ is installed - install it if the build stops here
+	@test -x /usr/bin/$@ > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+mercurial:
+	@#testing if $@ is installed - install it if the build stops here
+	@test -x /usr/bin/hg > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+gnupg:
+	@#testing if $@ is installed - install it if the build stops here
+	@test -x /usr/sbin/$@ > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+gperf:
+	@#testing if $@ is installed - install it if the build stops here
+	@test -x /usr/sbin/$@ > /dev/null 2>&1 || if [ -e $(OS_VER) ]; \
+		then $(INSTALL_PACKAGE) $@; else echo "E: Missing $@"; exit 99; fi
+
+binutils:
+	@#testing if ar (binutils) is installed - install binutils if the build stops here
+	@ar --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) binutils; fi
+
+arm-linux-gnu-gcc:
+	@#testing if $@ toolchain is installed - install it if the build stops here
+	@$@ --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) gcc-arm-linux-gnu; fi
+ 
+arm-linux-gnueabi-gcc:
+	@#testing if $@ toolchain is installed - install it if the build stops here
+	@$@ --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) gcc-arm-linux-gnueabi; fi
+
+aarch64-linux-gnu-gcc:
+	@#testing if $@ toolchain is installed - install it if the build stops here
+	@$@ --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) gcc-aarch64-linux-gnu; fi
+
+gcc-target: $(CROSSNAME)gcc
+#gcc-target: gcc-cross-$(ARCH)
+
+qemu-user-static:
+	@#testing if $@ toolchain is installed - install it if the build stops here
+	@qemu-aarch64-static --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) qemu-user-static; fi
+
+binfmt:
+	@#echo I: Checking binfmt 
+	@if ! grep 'binfmt' /proc/mounts > /dev/null 2>&1; then \
+	$(ROOTCMD) mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc > /dev/null 2>&1; \
+	fi
+	@if grep 'disabled' /proc/sys/fs/binfmt_misc/status > /dev/null 2>&1; then \
+	echo 1 > $(ROOTCMD) tee /proc/sys/fs/binfmt_misc/status; \
+	fi
+	@if [ $(ARCH) = "arm64" ]; then \
+		if [ -f /etc/binfmt.d/qemu-aarch64-static.conf ]; then \
+			systemctl restart systemd-binfmt; \
+		else echo ':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:F' > /etc/binfmt.d/qemu-aarch64-static.conf; \
+		systemctl restart systemd-binfmt; \
+		fi \
+	fi
+
+.PHONY: sudo subversion quilt cvs diff gcc bzip2 depmod fakeroot texinfo bison \
+	flex wget ncurses-dev debhelper gawk chrpath help2man texi2html mercurial \
+	binutils gcc g++ arm-linux-gnu-gcc arm-linux-gnueabi-gcc aarch64-linux-gnu-gcc gcc-target qemu-user-static
+
+## FIXME: Think about it
+## # If we build our own, we should not depend on it :)	
+## arm-linux-gnu-gcc:
+## 	@#testing if $@ toolchain is installed - install it if the build stops here
+## 	@$@ --version &> /dev/null || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS)  install gcc-4.3-arm-linux-gnu; fi 
+## 
+## # If we build our own, we should not depend on it :)	
+## arm-linux-gnueabi-gcc:
+## 	@#testing if $@ toolchain is installed - install it if the build stops here
+## 	@$@ --version &> /dev/null || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS) install gcc-4.3-arm-linux-gnueabi; fi 
+## 
+## # If we build our own, we should not depend on it :)	
+## arm-linux-gnu-g++:
+## 	@#testing if $@ toolchain is installed - install it if the build stops here
+## 	@$@ --version &> /dev/null || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS)  install g++-4.3-arm-linux-gnu; fi 
+## 
+## # If we build our own, we should not depend on it :)	
+## arm-linux-gnueabi-g++:
+## 	@#testing if $@ toolchain is installed - install it if the build stops here
+## 	@$@ --version &> /dev/null || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS)  install g++-4.3-arm-linux-gnueabi; fi 
+## 
+## 
+## #these three packages are old-arm for bootldr currently - should be 'arm|armel' but bootldr needs fixing
+## zlib-arm-cross:
+## 	@#testing if zlib1g-dev is cross-installed - install it with apt-cross if the build stops here
+## 	@test -e /usr/arm-linux-gnu/include/zlib.h || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS) install $@ || sudo apt-cross -a arm $(APTCROSSOPTIONS) -i zlib1g-dev \
+## 	  || echo "Make sure you have install apt-cross and added emdebian.org to your sources.list. See http://www.emdebian.org/tools/crosstools.html"; fi
+## 
+## libc6-dev-arm-cross:
+## 	@#testing if $@ is installed - install it with apt-cross if the build stops here
+## 	@test -e /usr/arm-linux-gnu/include/string.h || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS) install $@ || sudo apt-cross -a arm $(APTCROSSOPTIONS) -i libc6-dev \
+## 	  || echo "Make sure you have install apt-cross and added emdebian.org to your sources.list. See http://www.emdebian.org/tools/crosstools.html"; fi
+## 
+## # FIXME: Remove dpkg and apt-cross dependencies
+## linux-libc-dev-arm-cross:
+## 	@#testing if $@ is installed - install it if the build stops here
+## 	@dpkg -s $@ &> /dev/null || if [ -e /etc/debian_version ]; then sudo apt-get $(EMDEBAPTOPTIONS) install $@ || sudo apt-cross -a arm $(APTCROSSOPTIONS) -i linux-libc-dev \
+## 	  || echo "Make sure you have added emdebian.org to your sources.list. See http://www.emdebian.org/tools/crosstools.html"; fi 
+
+##        arm-linux-gnu-gcc arm-linux-gnu-g++ arm-linux-gnueabi-gcc arm-linux-gnueabi-g++ \
+##        linux-kernel-headers-arm-cross
+
+package-deps: build-essential crossbuild-essential-$(ARCH) bzip2 tar git binfmt
+
+DEPS+=package-deps

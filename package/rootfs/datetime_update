@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+### BEGIN INIT INFO
+# Provides:          datetime_update
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Short-Description: Update date time for system clock
+### END INIT INFO
+
+RFS_TIMESTAMP_FILE=/var/local/.ts
+MMC_TIMESTAMP_FILE=/var/local/data/.ts
+TEMP_TIMESTAMP_FILE=/var/local/data/.tempts
+
+
+case "$1" in
+    update)
+        if [ -f "$MMC_TIMESTAMP_FILE" ]; then
+            touch $TEMP_TIMESTAMP_FILE
+            if [ $TEMP_TIMESTAMP_FILE -nt $MMC_TIMESTAMP_FILE ]; then
+                touch $MMC_TIMESTAMP_FILE
+            fi
+            rm -f $TEMP_TIMESTAMP_FILE
+        fi
+        break
+        ;;
+    *)
+        if /usr/bin/timedatectl status | grep -q 'System clock synchronized: no'; then
+            if [ ! -f "$MMC_TIMESTAMP_FILE" ] ; then
+                date -s "$(/bin/date --rfc-3339=ns -r $RFS_TIMESTAMP_FILE)"
+                touch $MMC_TIMESTAMP_FILE
+            elif [ $RFS_TIMESTAMP_FILE -nt $MMC_TIMESTAMP_FILE ] ; then
+                date -s "$(/bin/date --rfc-3339=ns -r $RFS_TIMESTAMP_FILE)"
+                touch $MMC_TIMESTAMP_FILE
+            else
+                date -s "$(/bin/date --rfc-3339=ns -r $MMC_TIMESTAMP_FILE)"
+            fi
+        fi
+        ;;
+esac
+
+exit 0

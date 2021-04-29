@@ -1,0 +1,144 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_KERNEL
+	bool "Build Linux kernel"
+	default "y"
+
+if SNIC_PACKAGE_KERNEL
+
+menu "Kernel options"
+
+choice
+	prompt "Select kernel version"
+	default SNIC_KERNEL_NXP
+
+config SNIC_KERNEL_NXP
+	bool "NXP QorIQ Linux kernel"
+	depends on SNIC_NXP
+
+config SNIC_KERNEL_GENERIC
+	bool "Generic Linux kernel"
+#	depends on SNIC_DEVELOPER
+
+endchoice
+
+
+if SNIC_KERNEL_NXP
+choice
+	prompt "Select NXP kernel version"
+	default SNIC_KERNEL_NXP_5.4
+
+config SNIC_KERNEL_NXP_4.19
+	bool "NXP QorIQ Linux kernel 4.19"
+	depends on (SNIC_QORIQ_TAG_LSDK_20.04)
+
+config SNIC_KERNEL_NXP_5.4
+	bool "NXP QorIQ Linux kernel 5.4"
+	depends on SNIC_QORIQ_TAG_LSDK_20.04
+
+endchoice
+endif
+
+if SNIC_KERNEL_GENERIC
+choice
+	prompt "Select Generic kernel version"
+	default SNIC_KERNEL_5.6.11
+
+config SNIC_KERNEL_5.4
+	bool "Generic Linux kernel 5.4"
+	depends on SNIC_KERNEL_GENERIC
+
+config SNIC_KERNEL_5.6.11
+	bool "Linux kernel 5.6.11"
+	depends on SNIC_KERNEL_GENERIC
+	
+endchoice
+endif
+
+config SNIC_KERNEL_REMAKE
+	bool "Rebuild Linux kernel"
+	default "n"
+	help
+	  Rebuild Linux kernel everytime make is called rather than check for
+	  zImageBoot presence.
+
+config SNIC_KERNEL_REDUCED
+	bool "Build reduced kernel config"
+	default "n"
+	help
+	  Generate a smaller Linux kernel image
+
+config SNIC_KERNEL_BOOT
+	bool "Build boot image"
+	default "y"
+	help
+	  Generate a Linux kernel image which it is able to boot.
+
+config SNIC_KERNEL_COMPRESSED
+	depends on SNIC_KERNEL_BOOT
+	bool "Also build compressed kernel boot images"
+	default "y"
+
+config SNIC_KERNEL_MODULES
+	bool "Build kernel modules"
+	default "y"
+	help
+	  Generate Linux kernel modules.
+
+config SNIC_KERNEL_MODULES_NODEBUG
+	depends on SNIC_KERNEL_MODULES
+	bool "Strip debug symbols from kernel modules"
+	default "y"
+	help
+	  Strip Linux kernel modules of debug information to save space
+
+config SNIC_KERNEL_INITRD
+	depends on SNIC_KERNEL_BOOT
+	select SNIC_PACKAGE_INITRAMFS
+	bool "Build initramfs kernel"
+	default "y"
+	help
+	  Generate Linux kernel with initrd support.
+
+config SNIC_KERNEL_INITRAMFS_MODULES
+	depends on SNIC_KERNEL_INITRD && SNIC_KERNEL_MODULES
+	bool "Build initramfs with kernel modules"
+	default "y"
+
+config SNIC_KERNEL_INITRAMFS_COMPRESSION
+	depends on SNIC_KERNEL_INITRD
+	bool "Compress initramfs"
+	default "y"
+
+config SNIC_KERNEL_CUSTOM_MODULE
+	depends on SNIC_KERNEL_BOOT || SNIC_KERNEL_INITRD
+	bool "Build custom kernel module (replace foo.c in custom_module dir)"
+	default "n"
+
+#config SNIC_KERNEL_UBOOT
+#	depends on SNIC_KERNEL_BOOT
+#	bool "Build U-Boot Linux kernel image"
+#	default "n"
+
+config SNIC_KERNEL_HEADERS
+	depends on SNIC_KERNEL_BOOT
+	bool "Build kernel headers"
+	default "n"
+
+config SNIC_KERNEL_SOURCE
+	depends on SNIC_KERNEL_BOOT
+	bool "Build configured kernel source tarball"
+	default "n"
+
+config SNIC_KERNEL_DEBIAN_PACKAGE
+	depends on SNIC_KERNEL_BOOT
+	bool "Build debian packages"
+	default "n"
+
+endmenu
+
+endif

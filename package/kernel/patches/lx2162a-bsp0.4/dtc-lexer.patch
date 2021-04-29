@@ -1,0 +1,19 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: linux-lx2162a-bsp0.4-lx2162au26z/scripts/dtc/dtc-lexer.l
+===================================================================
+--- linux-lx2162a-bsp0.4-lx2162au26z.orig/scripts/dtc/dtc-lexer.l
++++ linux-lx2162a-bsp0.4-lx2162au26z/scripts/dtc/dtc-lexer.l
+@@ -23,7 +23,7 @@ LINECOMMENT	"//".*\n
+ #include "srcpos.h"
+ #include "dtc-parser.tab.h"
+ 
+-YYLTYPE yylloc;
++/* removed NCB YYLTYPE yylloc; */
+ extern bool treesource_error;
+ 
+ /* CAUTION: this will stop working if we ever use yyless() or yyunput() */

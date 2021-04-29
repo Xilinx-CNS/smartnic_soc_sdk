@@ -1,0 +1,8 @@
+{
+"update_server": SERVER,
+"update_server_transport": TRANSPORT,
+"update_server_user": USER,
+"update_server_port": PORT,
+"update_dir": DIR,
+"update_config_file": FILE
+}

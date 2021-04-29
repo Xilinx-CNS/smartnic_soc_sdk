@@ -1,0 +1,6 @@
+os_release.patch
+lsb_release.patch
+issue.patch
+issue.net.patch
+update_motd.d.patch
+legal.patch

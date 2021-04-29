@@ -1,0 +1,154 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo testing SuC I2C
+
+#Device address
+i2cdev=0
+i2c_chipaddr=0x48
+
+#constant values
+device_id=1
+device_version=1
+
+soc_state_uboot=1
+soc_state_os_start=2
+soc_state_os_running=3
+
+aux_power_flag=0x1
+os_recovery_flag=0x2
+wd_fired_flag=0x10
+# power throttle flags(bit2(sensor warning), bit3 (sensor critical), bit5(power throttle))
+power_throttle_flags=0x26
+
+#offsets
+devid_offset=0x0
+devversion_offset=0x1
+status_flags_offset=0x2
+reset_count_offset=0x3
+watchdog_kick_offset=0x5
+watchdog_period_offset=0x6
+soc_state_offset=0x7
+sw_reset_count_offset=0x8
+scratchpad_offset=0x9
+eeprom_ctrl_offset=0xa
+suc_ctrl_offset=0xb
+last_reboot_lsb_offset=0xc
+last_reboot_msb_offset=0xd
+
+length=1
+kernel_timeout=60
+i2c_test_addr=0xb0000000
+i2c_test_addr1=0xb0000001
+
+i2c dev $i2cdev
+
+#read the device ID
+i2c read $i2c_chipaddr $devid_offset $length $i2c_test_addr
+setexpr.b i2c_var *$i2c_test_addr
+if test $device_id = $i2c_var; then
+    echo verified device ID $i2c_var
+else
+    echo Device ID not valid
+exit
+fi
+
+#Read the device version
+i2c read $i2c_chipaddr $devversion_offset $length $i2c_test_addr
+setexpr.b i2c_var *$i2c_test_addr
+if test $i2c_var = $device_version; then
+    echo verified device version $i2c_var
+else
+    echo Suc device version not compatible
+exit
+fi
+
+#set soc state
+i2c mw $i2c_chipaddr $soc_state_offset $soc_state_uboot $length
+
+#Disable watchdog
+i2c mw $i2c_chipaddr $suc_ctrl_offset 0 $length
+
+#read status flags
+i2c read $i2c_chipaddr $status_flags_offset $length $i2c_test_addr
+
+#check aux power flag
+setexpr.b i2c_var *$i2c_test_addr \& $aux_power_flag
+if test $i2c_var != 0; then
+    echo aux power available
+else
+    echo aux power flag not set
+fi
+
+#check OS recovery flag
+setexpr.b i2c_var *$i2c_test_addr \& $os_recovery_flag
+if test $i2c_var != 0; then
+    echo needs OS recovery
+    setenv maintenance yes
+else
+    echo os recovery flag not set
+fi
+
+#check power throttle flags
+setexpr.b i2c_var *$i2c_test_addr \& $power_throttle_flags
+if test $i2c_var != 0; then
+    echo Suc needs power throttle
+else
+    echo Power throttling not required
+fi
+
+#check watchdog fired flag
+setexpr.b i2c_var *$i2c_test_addr \& $wd_fired_flag
+if test $i2c_var != 0; then
+    echo watchdog fired
+    i2c read $i2c_chipaddr $scratchpad_offset $length $i2c_test_addr
+    setexpr.b i2c_var *$i2c_test_addr
+    if test $i2c_var = $soc_state_os_start; then
+        echo could not boot last time
+        setenv maintenance yes
+        setenv cntr
+        setenv time
+    else
+        if test $i2c_var = $soc_state_os_running; then
+            i2c read $i2c_chipaddr $last_reboot_lsb_offset $length $i2c_test_addr
+            i2c read $i2c_chipaddr $last_reboot_msb_offset $length $i2c_test_addr1
+            if test -nz $cntr; then
+                setexpr cntr $cntr + 1
+            else
+                setenv cntr 1;
+            fi
+            if test -nz $time; then
+                setexpr.w time $time + *$i2c_test_addr
+            else
+                setexpr.w time *$i2c_test_addr
+            fi
+            saveenv
+            echo kernel crashed $cntr times in last $time seconds
+            if test $cntr > $CPU_CRASH_COUNTER; then
+                if test $time < $CPU_CRASH_TIMER; then
+                    echo going into maintainence mode
+                    setenv maintenance yes
+                fi
+            fi
+        else
+            setenv cntr
+            setenv time
+        fi
+    fi
+else
+    echo not watchdog operation
+    setenv cntr
+    setenv time
+fi
+
+#set watchdog timer for kernel boot
+i2c mw $i2c_chipaddr $watchdog_period_offset $kernel_timeout $length
+
+#set soc state previous state in scratchpad to os_start
+i2c mw $i2c_chipaddr $soc_state_offset $soc_state_os_start $length
+i2c mw $i2c_chipaddr $scratchpad_offset $soc_state_os_start $length
+setenv i2c_var
+

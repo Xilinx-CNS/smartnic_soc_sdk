@@ -1,0 +1,22 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+# This file describes the network interfaces available on your system
+# For more information, see netplan(5).
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    fsl:
+      match:
+        name: enp1s0f0
+      dhcp4: no
+      addresses:
+        - 192.168.1.1/24
+    usb:
+      match:
+        name: usb0
+      dhcp4: yes

@@ -1,0 +1,57 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2020.02.3-lx2162au26z/package/diagnostics/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/diagnostics/Config.in
+@@ -0,0 +1,10 @@
++config BR2_PACKAGE_DIAGNOSTICS
++	bool "diagnostics"
++	default y
++#	depends on BR2_TOOLCHAIN_HAS_THREADS # policycoreutils
++#	depends on BR2_TOOLCHAIN_USES_GLIBC # policycoreutils
++#	depends on BR2_PACKAGE_AUDIT_ARCH_SUPPORTS # policycoreutils
++#	depends on !BR2_STATIC_LIBS # policycoreutils
++#	depends on !BR2_arc # policycoreutils
++	help
++	  Diagnostic SW for Xilinx u26z boards
+Index: buildroot-2020.02.3-lx2162au26z/package/diagnostics/diagnostics.mk
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/diagnostics/diagnostics.mk
+@@ -0,0 +1,22 @@
++###############################################################################
++#
++# diagnostics
++#
++################################################################################
++
++DIAGNOSTICS_VERSION = 0.1
++DIAGNOSTICS_SITE = $(TOPDIR)/../../../../package/diagnostics
++DIAGNOSTICS_SITE_METHOD = local
++
++define DIAGNOSTICS_BUILD_CMDS
++#	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS) -Icommon" -C $(@D)
++	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS)" -C $(@D)
++	dpkg -x $(@D)/stressapptest_1.0.6-2_arm64.deb $(@D)
++endef
++
++define DIAGNOSTICS_INSTALL_TARGET_CMDS
++	install -D -m 755 $(@D)/diagnostics $(TARGET_DIR)/usr/bin/diagnostics
++	install -D -m 755 $(@D)/usr/bin/stressapptest $(TARGET_DIR)/usr/bin/stressapptest
++endef
++
++$(eval $(generic-package))
+Index: buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+===================================================================
+--- buildroot-2020.02.3-lx2162au26z.orig/package/extraConfig.in
++++ buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+@@ -4,3 +4,4 @@
+ 	source "package/python-ptable/Config.in"
+ 	source "package/oath/Config.in"
+ 	source "package/restool/Config.in"
++	source "package/diagnostics/Config.in"

@@ -1,0 +1,25 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/include/asm/arch-fsl-layerscape/soc.h
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/arch/arm/include/asm/arch-fsl-layerscape/soc.h
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/include/asm/arch-fsl-layerscape/soc.h
+@@ -113,10 +113,13 @@ enum boot_src get_boot_src(void);
+ #define SVR_MAJ(svr)		(((svr) >> 4) & 0xf)
+ #define SVR_MIN(svr)		(((svr) >> 0) & 0xf)
+ #define SVR_REV(svr)		(((svr) >> 0) & 0xff)
+-#define SVR_SOC_VER(svr)	(((svr) >> 8) & SVR_WO_E)
+ #define IS_E_PROCESSOR(svr)	(!((svr >> 8) & 0x1))
+ #ifdef CONFIG_ARCH_LX2160A
+ #define IS_C_PROCESSOR(svr)	(!((svr >> 12) & 0x1))
++#define SVR_WO_CE                            0xFFFFEE
++#define SVR_SOC_VER(svr)  (((svr) >> 8) & SVR_WO_CE)
++#else
++#define SVR_SOC_VER(svr)  (((svr) >> 8) & SVR_WO_E)
+ #endif
+ #define IS_SVR_REV(svr, maj, min) \
+ 		((SVR_MAJ(svr) == (maj)) && (SVR_MIN(svr) == (min)))

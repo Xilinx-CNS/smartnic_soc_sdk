@@ -1,0 +1,18 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+=== CHAINBOOTING ===
+Booting a secondary kernel and/or rootfs from a running linux distro.
+
+The initial kernel must be built with the kexec option enabled and the rootfs must have the kexec utility installed.
+The primary rootfs will mount partitions from a number of block devices.
+
+In the mounted filesystem the /boot dir will be searched and if the file enable_chainboot is found it will ..
+- Execute the script chainboot.sh if present
+- The enable_netboot and netboot_kernel_url is searched and, if found, the kernel is fetched, loaded and executed with the optional contents of netboot_kernel_cmdline.
+- Then the text files kernel and cmdline are searched for. If found they overwrite the defaults of vmlinuz and the current command line used to boot this kernel.
+  An attempt to kexec load and execute this kernel with the specified command line is made.
+

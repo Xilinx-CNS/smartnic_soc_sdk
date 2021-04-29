@@ -1,0 +1,8 @@
+{
+"upgrade_from_usb": false,
+"install_xspi": false,
+"xspi_img": "data/boot_xspi.img",
+"install_rootfs": true,
+"rootfs_tgz": "data/rootfs.tgz",
+"reboot": true
+}

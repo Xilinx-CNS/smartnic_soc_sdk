@@ -1,0 +1,90 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+DEBUG=no
+
+say()
+{
+	/bin/echo "$1" > /dev/console
+}
+
+debug()
+{
+    if [ ""$DEBUG = "yes" ]; then
+	say "$1"
+    fi
+}
+
+debug "custom script starting"
+
+get_opt()
+{
+  echo "$@" | cut -d "=" -f 2
+}
+
+get_arg()
+{
+  echo "$@" | cut -d "," -f 2
+}
+
+read_char_timeout5() {
+
+	old=$(stty -g)
+
+	stty raw -echo min 0 time 50
+
+	eval "$1=\$(dd bs=1 count=1 2>/dev/null)"
+
+	stty $old
+
+}
+
+ACTION="$1"
+shift
+
+case "$ACTION" in
+    start)
+	echo "Press any key to cancel check_maintenance. 5 seconds to respond..."
+	read_char_timeout5 answer
+	if [ "X$answer" = "X" ]; then
+		check_maintenance
+	else
+	    echo "."
+#	    if [ -x /sbin/runpppd ]; then
+#		/usr/bin/dialog --timeout 5 --yesno "Do not run pppd (5 secs to answer):" 0 0
+#		retval=$?
+#		echo "retval = $retval"
+#		if [ ! "X$retval" = "X0" ]; then
+#		    runpppd
+#		fi
+#	    fi
+	fi
+        echo "."
+        ;;
+    stop)
+        echo "."
+        ;;
+    status)
+        ;;
+    suspend)
+        echo "."
+        ;;
+    resume)
+        echo "."
+        ;;
+    force-reload|restart)
+        $0 stop
+        sleep 3
+        $0 start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|force-reload|status|suspend|resume}"
+        exit 1
+esac
+
+exit 0

@@ -1,0 +1,30 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+menu "Custom Boot Files"
+
+config SNIC_BOOT_CUSTOM_INSTALLER
+	bool "Rootfs Installer"
+	default 'y'
+
+config SNIC_BOOT_CUSTOM_INSTALLER_ROOTFS
+	bool "Install current custom rootfs"
+	depends on SNIC_BOOT_CUSTOM_INSTALLER
+	default 'y'
+
+config SNIC_BOOT_CUSTOM_UPDATER
+	bool "Flash update tools"
+	default 'y'
+
+config SNIC_BOOT_CUSTOM_UPDATER_IMGS
+	bool "Install flash images"
+	depends on SNIC_BOOT_CUSTOM_UPDATER && SNIC_FIRMWARE_QORIQ_BOOT_IMAGES
+	default 'y'
+
+#config SNIC_BOOT_CUSTOM_INIT
+#	bool "Custom init script"
+
+endmenu

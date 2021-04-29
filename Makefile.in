@@ -1,0 +1,132 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+# include configs if present
+-include $(CHECKOUT)/.config
+
+#HOST_ARCH=`uname -m`
+HOST_ARCH=`dpkg --print-architecture`
+
+ifeq ($(HOST_ARCH),$(ARCH))
+NATIVE_BUILD=y
+endif
+
+include $(CHECKOUT)/target/target.mk
+
+ifeq ($(SNIC_BUILD_INTREE),n)
+ifeq ($(BUILDDIR),)
+export BUILDDIR:=$(CHECKOUT)/../build/$(SOC)
+endif
+export DISTRODIR:=$(CHECKOUT)/../distro/$(SOC)
+#export DOWNLOADDIR:=$(CHECKOUT)/../downloads/$(SOC)
+export DOWNLOADDIR:=$(CHECKOUT)/../downloads
+export IMPORTDIR:=$(CHECKOUT)/../imports/$(SOC)
+else
+ifeq ($(BUILDDIR),)
+export BUILDDIR:=$(CHECKOUT)/build/$(SOC)
+endif
+export DISTRODIR:=$(CHECKOUT)/distro/$(SOC)
+#export DOWNLOADDIR:=$(CHECKOUT)/downloads/$(SOC)
+export DOWNLOADDIR:=$(CHECKOUT)/downloads
+export IMPORTDIR:=$(CHECKOUT)/imports/$(SOC)
+endif
+
+export DISTROBIN:=$(DISTRODIR)/binaries
+export SOURCEDIR:=$(DISTRODIR)/sources
+export DEBDIR:=$(DISTRODIR)/debpackage
+export PACKAGEDIR:=$(CHECKOUT)/package
+export PRESEEDDIR:=$(CHECKOUT)/preseed/
+export SDK_VERSION:=$(shell $(PACKAGEDIR)/sdk_version/version_script.sh)
+
+CENTOS_RELEASE=/etc/centos-release
+REDHAT_RELEASE=/etc/redhat-release
+DEBIAN_RELEASE=/etc/debian_version
+DNF=/usr/bin/dnf
+YUM=/usr/bin/yum
+DPKG=/usr/bin/dpkg
+APT=/usr/bin/apt
+APTITUDE=/usr/bin/aptitude
+
+
+ifneq ($(wildcard $(CENTOS_RELEASE)),)
+OS_VER=$(CENTOS_RELEASE)
+HOST=centos
+RPM=y
+endif
+
+ifneq ($(wildcard $(REDHAT_RELEASE)),)
+OS_VER=$(REDHAT_RELEASE)
+HOST=redhat
+RPM=y
+endif
+
+ifneq ($(wildcard $(DEBIAN_RELEASE)),)
+OS_VER=$(DEBIAN_RELEASE)
+HOST=debian
+DEB=y
+endif
+
+ifneq ($(wildcard $(DNF)),)
+HAS_DNF=y
+endif
+
+ifneq ($(wildcard $(YUM)),)
+HAS_YUM=y
+endif
+
+ifneq ($(wildcard $(APT)),)
+HAS_APT=y
+endif
+
+ifneq ($(wildcard $(APTITUDE)),)
+HAS_APTITUDE=y
+endif
+
+MAKEOPTS:=
+ifdef SNIC_MAKE_JOBS
+MAKEOPTS:=-j $(SNIC_MAKE_JOBS)
+endif
+
+ifeq ($(SNIC_USE_SUBVARIANT),y)
+ifneq ($(SNIC_SUBVARIANT),"")
+SUBVARIANT=$(SNIC_SUBVARIANT)
+endif
+endif
+
+export VARIANT
+export SUBVARIANT
+
+export FAKEROOT=`if [ -z $$FAKEROOTKEY ]; then echo "fakeroot -i $(BUILD)/fakerootstate -s $(BUILD)/fakerootstate"; fi;`
+
+#BOARD_VARIANT=$(BOARD)$(VARIANT)
+#OLD_BOARD_VARIANT=$(shell cat $(BUILDDIR)/board_variant)
+
+#board_variant:
+#	@rm -f $(BUILDDIR)/board_variant_changed
+#	if [ "x$(OLD_BOARD_VARIANT)" != "x$(BOARD_VARIANT)" ]; then \
+#		touch $(BUILDDIR)/board_variant_changed; \
+#		echo "$(BOARD_VARIANT)" > $(BUILDDIR)/board_variant; \
+#	fi
+#
+#.phony: board_variant
+#
+#CONFIG_TARGETS:=board_variant
+
+# utility to remove double quotes and whitespace
+qstrip=$(strip $(subst ",,$(1)))
+
+# $(call getdeps,dir,name)
+define getdeps
+	$(shell if [ -e $(1)/$(2).deps ]; then cat $(1)/$(2).deps; fi)
+endef
+
+# include the package makefiles
+include $(PACKAGEDIR)/Makefile.in
+
+# required for menuconfig
+DEPS+=ncurses-dev quilt
+
+deps: $(DEPS)

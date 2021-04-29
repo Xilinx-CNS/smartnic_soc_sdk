@@ -1,0 +1,9 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+auto lo eth0
+iface lo inet loopback
+iface eth0 inet dhcp

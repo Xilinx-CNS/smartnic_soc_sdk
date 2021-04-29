@@ -1,0 +1,276 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+######################################
+# configurator
+# created by Nick Bane
+# Copyright (c) Toby Churchill Ltd 2007
+#######################################
+
+# make sure modules are available
+echo "installing usb support"
+modprobe ohci-hcd
+echo "adding usb storage support"
+modprobe usb-storage
+echo "adding vfat and ext2 support"
+modprobe vfat ext2
+
+DRIVE=sda1
+
+# make sure partitions are mounted
+mkdir -p /mnt/root /mnt/boot /mnt/${DRIVE}
+# mount root if not mounted
+if grep /mnt/root /proc/mounts ; then
+    echo "/mnt/root mounted"
+else
+    echo "mounting root (may take a while)"
+    mount /mnt/root >/dev/null 2>&1
+    if grep /mnt/root /proc/mounts; then
+	echo "root mounted"
+    else
+	echo "root partition not found"
+	exit 1
+    fi
+fi
+
+# mount boot if not mounted
+if grep /mnt/boot /proc/mounts ; then
+    echo "/mnt/boot mounted"
+else
+    echo "mounting boot"
+    mount /mnt/boot >/dev/null 2>&1
+    if grep /mnt/boot /proc/mounts; then
+	echo "boot mounted"
+    else
+	echo "boot partition not found"
+	exit 1
+    fi
+fi
+
+# mount sda1 if not mounted
+if grep /mnt/${DRIVE} /proc/mounts ; then
+    echo "/mnt/${DRIVE} already mounted"
+else
+    echo "mounting ${DRIVE}"
+    mount /mnt/${DRIVE}
+    if grep /mnt/${DRIVE} /proc/mounts; then
+        echo "${DRIVE} mounted"
+    else
+        echo " partition not found"
+        exit 1
+  fi
+fi
+
+# clear and install partitions from memory stick
+if [ -f /mnt/${DRIVE}/zImageBoot ]; then
+echo -e "install kernel to boot partition (y/n)? "
+read yn
+case "$yn" in
+    y)
+	echo "clearing /mnt/boot"
+	rm -R /mnt/boot/* >/dev/null 2>&1
+	echo "installing kernel"
+	cp /mnt/${DRIVE}/zImageBoot /mnt/boot/zImage
+	echo "done"
+    ;;
+    *)
+	echo "kernel install skipped"
+    ;;
+esac
+else
+    echo "no kernel found"
+#    exit 1
+fi
+
+if [ -f /mnt/${DRIVE}/debianstage1root.tgz ]; then
+echo -e "complete debootstrap of stage 1 deboot debian rootfs (y/n)? "
+read yn
+case "$yn" in
+    y)
+	cd /mnt/${DRIVE}
+	rm -rf debroot
+	mkdir -p debroot
+	echo "unpacking 1st stage debian rootfs (may take a while)"
+	( cd debroot && tar xvzf /mnt/${DRIVE}/debianstage1root.tgz )
+	echo "doing 2nd stage configure (will take a while)"
+	chroot debroot /debootstrap/debootstrap --second-stage
+	chroot debroot dpkg -i --force-confnew --force-overwrite /var/cache/apt/archives/config*.deb
+	echo "packing up configured debian rootfs (may take a while)"
+	( cd debroot && tar -cvzf ../debianroot.tgz * )
+	echo "done"
+    ;;
+    *)
+	echo "debian 1st-stage rootfs debotstrap skipped"
+    ;;
+esac
+else
+    echo "no debian 1st-stage rootfs found"
+fi
+
+if [ -f /mnt/${DRIVE}/emdebianrootstrap.tgz ]; then
+echo -e "Install and configure emdebian rootfs (Y/n)? "
+read yn
+case "$yn" in
+    y)
+	cd /mnt/${DRIVE}
+	rm -rf emdebroot
+	mkdir -p emdebroot
+	echo "unpacking emdebian rootfs (may take a while)"
+	( cd emdebroot && tar xvzf /mnt/${DRIVE}/emdebianrootstrap.tgz )
+	echo "configuring packages (will take about 45mins!)"
+	#ensure that no questions are asked so this can be automated
+	export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true
+	chroot emdebroot dpkg -a --configure
+	echo "packing up configured emdebian rootfs (may take a while)"
+	( cd emdebroot && tar -cvzf ../emdebianroot.tgz * )
+	echo "done"
+    ;;
+    *)
+	echo "emdebian rootfs configuration skipped"
+    ;;
+esac
+else
+    echo "no emdebian unconfigured rootfs found"
+fi
+
+if [ -f /mnt/${DRIVE}/debianroot.tgz ]; then
+    echo -e "install configured debian rootfs to root partition (y/n)? "
+    read yn
+    case "$yn" in
+    y)
+	cd /mnt
+	echo "clearing root (may take a while)"
+	rm -R /mnt/root/* >/dev/null 2>&1
+	echo "done"
+	echo "installing debian rootfs (may take a while)"
+	cd /mnt/root
+	tar xvzf /mnt/${DRIVE}/debianroot.tgz
+	cd /mnt
+	echo "done"
+    ;;
+    *)
+	echo "debian rootfs install skipped"
+    ;;
+    esac
+else
+    echo "no debian rootfs found"
+fi
+
+if [ -f /mnt/${DRIVE}/emdebianroot.tgz ]; then
+    echo -e "install configured emdebian rootfs to root partition (y/n)? "
+    read yn
+    case "$yn" in
+    y)
+	cd /mnt
+	echo "clearing root (may take a while)"
+	rm -R /mnt/root/* >/dev/null 2>&1
+	echo "done"
+	echo "installing emdebian rootfs (may take a while)"
+	cd /mnt/root
+	tar xvzf /mnt/${DRIVE}/emdebianroot.tgz
+	cd /mnt
+	echo "done"
+    ;;
+    *)
+	echo "emdebian rootfs install skipped"
+    ;;
+    esac
+else
+    echo "no debian rootfs found"
+fi
+
+if [ -f /mnt/${DRIVE}/modules.tgz ]; then
+    echo -e "install kernel modules to etch (y/n)? "
+    read yn
+    case "$yn" in
+    y)
+	mkdir -p /mnt/root
+	cd /mnt/root/
+	echo "installing modules"
+	tar xvzf /mnt/${DRIVE}/modules.tgz
+	cd /mnt
+	echo "done"
+    ;;
+    *)
+	echo "kernel modules install skipped"
+    ;;
+    esac
+else
+    echo "no kernel modules found"
+#    exit 1
+fi
+
+defaultsinstalled=NONE
+
+if [ "$defaultsinstalled" = "NONE" ]; then
+    if [ -f /mnt/${DRIVE}/cued_defaults.tgz ]; then
+        echo -e "install CUED defaults to etch (y/n)? "
+        read yn
+        case "$yn" in
+        y)
+	    mkdir -p /mnt/root
+	    cd /mnt/root
+	    echo "installing defaults"
+	    tar xvzf /mnt/${DRIVE}/cued_defaults.tgz
+	    cd /mnt
+	    echo "done"
+	    defaultsinstalled=CUED
+        ;;
+        *)
+	    echo "CUED defaults skipped"
+        ;;
+        esac
+    else
+        echo "no CUED defaults found"
+#       exit 1
+    fi
+fi
+
+if [ "$defaultsinstalled" = "NONE" ]; then
+    if [ -f /mnt/${DRIVE}/tcl_defaults.tgz ]; then
+        echo -e "install TCL defaults to etch (y/n)? "
+        read yn
+        case "$yn" in
+        y)
+	    mkdir -p /mnt/root
+	    cd /mnt/root
+	    echo "installing defaults"
+	    tar xvzf /mnt/${DRIVE}/tcl_defaults.tgz
+	    cd /mnt
+	    echo "done"
+	    defaultsinstalled=TCL
+        ;;
+        *)
+	    echo "TCL defaults skipped"
+        ;;
+        esac
+    else
+        echo "no TCL defaults found"
+#       exit 1
+    fi
+fi
+
+# optionally try and reboot
+echo -e "reboot (y/n)? "
+read yn
+case "$yn" in
+    y)
+	echo "rebooting"
+#	umount /mnt/boot
+	umount /mnt/root
+	umount /mnt/${DRIVE}
+	reboot -f -n
+    ;;
+    *)
+	echo "not rebooting"
+    ;;
+esac
+
+echo "$0 done"
+
+exit 0

@@ -1,0 +1,11 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+dtc-lexer.patch
+lx2160a-dts.patch
+lx2160ayrk.patch
+lx2162a-u26z.patch
+power_throttle.patch

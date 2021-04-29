@@ -1,0 +1,19 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: sfc-master/Makefile
+===================================================================
+--- sfc-master.orig/Makefile
++++ sfc-master/Makefile
+@@ -34,7 +34,7 @@ install modules_install:
+ 	$(MAKE) -C drivers/bus modules_install
+ 	$(MAKE) -C drivers/net/ethernet/sfc modules_install
+ 	$(build_selftests)
+-	depmod
++	/sbin/depmod
+ 
+ export-srpm export:
+ 	$(MAKE) -C drivers/bus $@

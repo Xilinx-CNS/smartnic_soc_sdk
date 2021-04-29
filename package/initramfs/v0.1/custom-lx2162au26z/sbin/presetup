@@ -1,0 +1,79 @@
+#!/bin/sh
+
+flag=0
+
+if [ -f /sbin/read_eeprom_maint ]; then
+python /sbin/read_eeprom_maint
+fi
+
+if [ -f /etc/init.d/S41dhcpcd ]; then
+    rm -rf /etc/init.d/S41dhcpcd
+fi
+
+if [ -f /mnt/rwfs/interfaces ]; then
+    cp -rf  /mnt/rwfs/interfaces /etc/network/
+fi
+
+if [ -f /mnt/rwfs/update-system.json ]; then
+    cp -rf /mnt/rwfs/update-system.json /etc/
+    chmod 666 /etc/update-system.json
+fi
+
+soc_state_offset=0x7
+scratchpad_offset=0x9
+i2c_bus=0x48
+soc_state=0x4
+dev_id=0x53
+dev_ver=0x01
+
+val=$(i2cget -y 0 $i2c_bus 0)
+if [ $val = $dev_id ]
+then
+	val=$(i2cget -y 0 $i2c_bus 1)
+	if [ $val = $dev_ver ]
+	then
+		i2cset -y 0 $i2c_bus $soc_state_offset $soc_state b
+		scratchpad_val=$(i2cget -y 0 $i2c_bus $scratchpad_offset)
+		scratchpad_val=$(( scratchpad_val&0xF8 ))
+		scratchpad_val=$(( scratchpad_val|soc_state ))
+		i2cset -y 0 $i2c_bus $scratchpad_offset $scratchpad_val b
+	fi
+fi
+
+if [ ! -d /mnt/p2 ]; then
+	mkdir /mnt/p2
+	mount /dev/mmcblk1p2 /mnt/p2
+	soc_version br
+	umount /mnt/p2
+	rm -rf /mnt/p2
+fi
+
+
+if [ -f /mnt/rwfs/sfc_driverlink.ko ]; then
+	if [ ! -d //lib/modules/$(uname -r)/updates ]; then
+		mkdir /lib/modules/$(uname -r)/updates
+	fi	
+	cp -rf  /mnt/rwfs/sfc_driverlink.ko /lib/modules/$(uname -r)/updates/
+	flag=1
+fi
+
+if [ -f /mnt/rwfs/sfc.ko ]; then
+	if [ ! -d //lib/modules/$(uname -r)/updates ]; then
+		mkdir /lib/modules/$(uname -r)/updates
+	fi	
+	cp -rf  /mnt/rwfs/sfc.ko /lib/modules/$(uname -r)/updates/
+	flag=1
+fi
+
+if [ -f /mnt/rwfs/virtual_bus.ko ]; then
+	if [ ! -d //lib/modules/$(uname -r)/updates ]; then
+		mkdir /lib/modules/$(uname -r)/updates
+	fi	
+	cp -rf  /mnt/rwfs/virtual_bus.ko /lib/modules/$(uname -r)/updates/
+	flag=1
+fi
+
+if [ $flag -eq 1 ]; then
+	depmod -a
+fi
+

@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FLASH_ERASE=`which flash_erase`
+MTD=/dev/mtd0
+NOR_FILE=../data/boot_xspi.img
+NOR_OFFSET=0
+# first 16M
+BS=123
+NOR_ERASE_BLOCKS=128
+NOR_BLOCKS=128
+if [ ! -x ${FLASH_ERASE} ]; then
+echo "No ${FLASH_ERASE} found"
+exit 1
+fi
+if [ ! -r ${MTD} ]; then
+echo "No ${MTD} found"
+exit 1
+fi
+if [ -r ${NOR_FILE} ]; then
+flash_erase ${MTD} ${NOR_OFFSET} ${NOR_ERASE_BLOCKS}
+echo "Updating NOR with ${NOR_FILE}"
+dd if=${NOR_FILE} of=${MTD} bs=${BS} count=${NOR_BLOCKS}
+else
+echo "${NOR_FILE} does not exist"
+fi

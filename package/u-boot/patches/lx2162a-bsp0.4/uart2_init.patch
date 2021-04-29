@@ -1,0 +1,113 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/serial/Kconfig
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/drivers/serial/Kconfig
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/serial/Kconfig
+@@ -133,6 +133,23 @@ config SERIAL_SEARCH_ALL
+ 
+ 	  If unsure, say N.
+ 
++config SERIAL_PROBE_ALL
++	bool "Probe all available serial devices"
++	depends on DM_SERIAL
++	default n
++	help
++	  The serial subsystem only probe for single serial device,
++	  but does not probe for other remaining serial devices.
++	  With this option set,we make probing and searching for
++	  all available devices optional.
++	  Normally, U-Boot talk to one serial port at a time but SBSA
++	  compliant UART devices like PL011 require initialization
++	  by firmware and let the kernel use serial port for sending
++	  and receiving the characters.
++
++	  If probing is not required for all remaining available
++	  devices other than default current console device, say N.
++
+ config SPL_DM_SERIAL
+ 	bool "Enable Driver Model for serial drivers in SPL"
+ 	depends on DM_SERIAL && SPL_DM
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/serial/serial-uclass.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/drivers/serial/serial-uclass.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/serial/serial-uclass.c
+@@ -82,6 +82,11 @@ static void serial_find_console_or_panic
+ 		uclass_first_device(UCLASS_SERIAL, &dev);
+ 		if (dev) {
+ 			gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 			return;
+ 		}
+ 	} else if (CONFIG_IS_ENABLED(OF_CONTROL) && blob) {
+@@ -92,11 +97,21 @@ static void serial_find_console_or_panic
+ 			if (np && !uclass_get_device_by_ofnode(UCLASS_SERIAL,
+ 					np_to_ofnode(np), &dev)) {
+ 				gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 				return;
+ 			}
+ 		} else {
+ 			if (!serial_check_stdout(blob, &dev)) {
+ 				gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 				return;
+ 			}
+ 		}
+@@ -121,6 +136,11 @@ static void serial_find_console_or_panic
+ 		    !uclass_get_device(UCLASS_SERIAL, INDEX, &dev)) {
+ 			if (dev->flags & DM_FLAG_ACTIVATED) {
+ 				gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 				return;
+ 			}
+ 		}
+@@ -132,6 +152,11 @@ static void serial_find_console_or_panic
+ 			if (!ret) {
+ 				/* Device did succeed probing */
+ 				gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 				return;
+ 			}
+ 		}
+@@ -140,6 +165,11 @@ static void serial_find_console_or_panic
+ 		    !uclass_get_device(UCLASS_SERIAL, INDEX, &dev) ||
+ 		    (!uclass_first_device(UCLASS_SERIAL, &dev) && dev)) {
+ 			gd->cur_serial_dev = dev;
++#ifdef CONFIG_SERIAL_PROBE_ALL
++			/* Scanning uclass to probe all devices */
++			for (; dev; uclass_next_device(&dev))
++				;
++#endif
+ 			return;
+ 		}
+ #endif
+@@ -505,3 +535,4 @@ UCLASS_DRIVER(serial) = {
+ 	.per_device_auto_alloc_size = sizeof(struct serial_dev_priv),
+ };
+ #endif
++

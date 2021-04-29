@@ -1,0 +1,9 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+buildroot-deps: which make sed binutils gcc g++ bash patch gzip bzip2 perl tar cpio python unzip rsync file bc wget
+
+DEPS+=buildroot-deps

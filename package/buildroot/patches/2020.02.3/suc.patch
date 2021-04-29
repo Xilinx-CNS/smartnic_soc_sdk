@@ -1,0 +1,56 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2020.02.3-lx2162au26z/package/suc/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/suc/Config.in
+@@ -0,0 +1,12 @@
++config BR2_PACKAGE_SUC
++	bool "suc_comms"
++	default y
++#	depends on BR2_TOOLCHAIN_HAS_THREADS # policycoreutils
++#	depends on BR2_TOOLCHAIN_USES_GLIBC # policycoreutils
++#	depends on BR2_PACKAGE_AUDIT_ARCH_SUPPORTS # policycoreutils
++#	depends on !BR2_STATIC_LIBS # policycoreutils
++#	depends on !BR2_arc # policycoreutils
++	help
++	  Communications tool with the System uController
++	  for Xilinx u26z boards
++
+Index: buildroot-2020.02.3-lx2162au26z/package/suc/suc.mk
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/suc/suc.mk
+@@ -0,0 +1,28 @@
++################################################################################
++#
++# suc
++#
++################################################################################
++
++SUC_VERSION = 0.1
++SUC_SITE = $(TOPDIR)/../../../../package/suc_comms
++SUC_SITE_METHOD = local
++#RESTOOL_SITE = https://source.codeaurora.org/external/qoriq/qoriq-components/restool
++#RESTOOL_SITE_METHOD = git
++#RESTOOL_SCRIPT_SYMLINKS = ls-addmux ls-addsw ls-addni ls-listni ls-listmac
++
++#RESTOOL_CFLAGS += -Icommon
++
++define SUC_BUILD_CMDS
++#	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS) -Icommon" -C $(@D)
++	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS)" -C $(@D)
++endef
++
++define SUC_INSTALL_TARGET_CMDS
++	install -D -m 755 $(@D)/suc_comms $(TARGET_DIR)/usr/bin/suc_comms
++#	install -D -m 755 $(@D)/scripts/ls-main $(TARGET_DIR)/usr/local/bin/ls-main
++#	install -D -m 755 $(@D)/scripts/ls-append-dpl $(TARGET_DIR)/usr/local/bin/ls-append-dpl
++#	$(foreach symlink, $(RESTOOL_SCRIPT_SYMLINKS), sh -c "cd $(TARGET_DIR)/usr/local/bin && ln -sf ls-main $(symlink)" ;)
++endef
++
++$(eval $(generic-package))

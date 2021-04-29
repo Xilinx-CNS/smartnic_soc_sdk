@@ -1,0 +1,132 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+config SNIC_FIRMWARE_QORIQ
+	depends on SNIC_PACKAGE_FIRMWARE && SNIC_NXP
+	bool "Build QoriQ layerscape SoC firmware"
+	default "y"
+
+config SNIC_FIRMWARE_QORIQ_BOOT_IMAGES
+	depends on SNIC_FIRMWARE_QORIQ
+	bool "Build QoriQ layerscape composite firmware images"
+	select SNIC_FIRMWARE_QORIQ_PBL_FIP
+	select SNIC_FIRMWARE_QORIQ_DDR
+	select SNIC_FIRMWARE_QORIQ_MC_UTILS
+	select SNIC_FIRMWARE_QORIQ_MC
+	select SNIC_FIT_NXP
+	default "y"
+
+config SNIC_FIRMWARE_QORIQ_BOOT_UEFI
+	depends on SNIC_PACKAGE_UEFI
+	bool "Use UEFI as BL33 boot image"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_BOOT_IMAGES_2M
+	depends on SNIC_FIRMWARE_QORIQ_BOOT_IMAGES
+	bool "Build firmware image without Initramfs kernel"
+	default "y"
+
+config SNIC_FIRMWARE_QORIQ_BOOT_IMAGES_64M
+	depends on SNIC_FIRMWARE_QORIQ_BOOT_IMAGES
+	bool "Build firmware image including Initramfs kernel"
+	select SNIC_FIT_KERNEL_INITRAMFS
+	default "y"
+
+config SNIC_FIRMWARE_DPAA2_DISABLED
+	bool "Disable DPAA2 and Build firmware without QoriQ layerscape MC binaries and utilities"
+	default "y"
+
+config SNIC_FIRMWARE_QORIQ_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ
+	bool "Select debug options for components (development only)"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_RCW
+	depends on SNIC_FIRMWARE_QORIQ
+	bool "Build QoriQ layerscape RCW (ResetControlWord)"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_RCW_REV2
+	depends on SNIC_FIRMWARE_QORIQ_RCW
+	bool "Build QoriQ layerscape RCW (ResetControlWord) for rev#2 silicon"
+	default "y"
+
+config SNIC_FIRMWARE_QORIQ_RCW_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ_RCW && SNIC_FIRMWARE_QORIQ_DEBUG
+	bool "Build debug RCW"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_ATF
+	depends on SNIC_FIRMWARE_QORIQ
+	bool "Build QoriQ layerscape ATF (ApiTrustedFirmware)"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_ATF_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ_ATF && SNIC_FIRMWARE_QORIQ_DEBUG
+	bool "Build QoriQ layerscape ATF (DEBUG)"
+	default ""
+
+config SNIC_FIRMWARE_QORIQ_PBL_FIP
+	depends on SNIC_FIRMWARE_QORIQ
+	bool "Build QoriQ layerscape pbl and fip firmware using u-boot"
+	select SNIC_FIRMWARE_QORIQ_RCW
+	select SNIC_FIRMWARE_QORIQ_ATF
+	select SNIC_PACKAGE_UBOOT
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_PBL_FIP_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ_PBL_FIP && SNIC_FIRMWARE_QORIQ_DEBUG
+	bool "Build debug pbl/fip"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_PHY
+	depends on SNIC_FIRMWARE_QORIQ && SNIC_DEVELOPER
+	bool "Download QoriQ layerscape ethernet PHY firmware"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_CORTINA
+	depends on SNIC_FIRMWARE_QORIQ && SNIC_DEVELOPER
+	bool "Download QoriQ layerscape cortina firmware"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_PFE
+	depends on SNIC_FIRMWARE_QORIQ && SNIC_DEVELOPER
+	bool "Download QoriQ layerscape pfe engine binaries"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_DDR
+	depends on SNIC_FIRMWARE_QORIQ && SNIC_SOC_LX2160A
+	bool "Download QoriQ layerscape ddr phy binaries"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_MC
+	depends on SNIC_FIRMWARE_QORIQ && !SNIC_FIRMWARE_DPAA2_DISABLED
+	bool "Download QoriQ layerscape MC binaries"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_MC_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ_MC && SNIC_FIRMWARE_QORIQ_DEBUG
+	bool "Build debug MC"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_MC_UTILS
+	depends on SNIC_FIRMWARE_QORIQ && !SNIC_FIRMWARE_DPAA2_DISABLED
+	bool "Build QoriQ layerscape MC utils firmware incl dpl and dpc dtbs"
+	default "n"
+
+config SNIC_FIRMWARE_QORIQ_MC_UTILS_DEBUG
+	depends on SNIC_FIRMWARE_QORIQ_MC_UTILS && SNIC_FIRMWARE_QORIQ_DEBUG
+	bool "Build debug MC_UTILS"
+	default "n"
+
+config SNIC_FIRMWARE_25G_ENABLE
+    bool "Enable 25G interface"
+    depends on SNIC_FIRMWARE_QORIQ && !SNIC_FIRMWARE_DPAA2_DISABLED
+    default "n"
+    help
+     Enables 25G interface
+

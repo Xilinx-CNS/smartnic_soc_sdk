@@ -1,0 +1,118 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_BOOT
+	bool "Boot partition"
+	depends on SNIC_PACKAGE_UBOOT
+	default "y"
+
+menu "Boot options"
+	depends on SNIC_PACKAGE_BOOT
+
+config SNIC_BOOT_UBOOT
+	depends on SNIC_PACKAGE_UBOOT
+	bool "Add custom bootscript for U-boot"
+	default "y"
+
+menu "U-Boot boot scripts"
+	depends on SNIC_BOOT_UBOOT
+
+choice
+	prompt "Select which rootfs device to use"
+	default SNIC_BOOT_MMC1
+
+config SNIC_BOOT_MMC0
+	bool "Boot from MMC0 (SD card)"
+
+config SNIC_BOOT_MMC1
+	bool "Boot from MMC1 (eMMC)"
+
+endchoice
+
+config SNIC_BOOT_PART
+	string "Specify u-boot mmc boot partition for reading boot scr images"
+	default "2"
+
+config SNIC_BOOT_KERNPART
+	string "Specify u-boot mmc boot partition for reading kernel"
+	depends on SNIC_PACKAGE_KERNEL
+	default "3"
+
+config SNIC_BOOT_DTBPART
+	string "Specify u-boot mmc boot partition for reading dtb images"
+	depends on SNIC_PACKAGE_KERNEL
+	default "2"
+
+config SNIC_BOOT_ROOTFSPART
+	string "Specify rootfs device partition (under /dev/) for kernel command line"
+	default "p3"
+
+
+config SNIC_BOOT_FIT_KERNEL
+	depends on SNIC_PACKAGE_FIT
+	bool "Add booting kernel via FIT image "
+	default "n"
+
+
+config SNIC_BOOT_COMPLEX
+	bool "Complex booting from several alternatives"
+	default "y"
+
+choice
+	prompt "Target Boot"
+	default SNIC_BOOT_BOOTSCRIPT_COMPLEX
+	help
+	  Select target boot via initramfs, initrd or rootfs partition.
+
+config SNIC_BOOT_BOOTSCRIPT_COMPLEX
+	bool "Bootscript supporting many targets"
+
+endchoice
+
+if SNIC_BOOT_BOOTSCRIPT_COMPLEX
+
+config SNIC_BOOT_HUGEPAGES_SIZE
+	string "HugePages size"
+	default "1024m"
+
+config SNIC_BOOT_HUGEPAGES_NUM
+	string "Number of HugePages to request"
+	default "0"
+	help
+	  This eats ram in HUGEPAGES_SIZE chunks
+endif
+
+
+choice
+	prompt "Select which booscript to use"
+
+config SNIC_BOOT_COMPLEX_LINK
+	depends on SNIC_BOOT_COMPLEX
+	bool "Complex bootscript"
+
+config SNIC_BOOT_KERNEL_INITRD_LINK
+	depends on SNIC_FIT_KERNEL_INITRD && SNIC_BOOT_FIT_KERNEL
+	bool "Initrd fit bootscript"
+
+config SNIC_BOOT_KERNEL_ONLY_LINK
+	depends on SNIC_FIT_KERNEL_ONLY && SNIC_BOOT_FIT_KERNEL
+	bool "Kernel only fit bootscript"
+
+config SNIC_BOOT_KERNEL_INITRAMFS_LINK
+	depends on SNIC_FIT_KERNEL_INITRAMFS && SNIC_BOOT_FIT_KERNEL
+	bool "Kernel with intramfs fit bootscript"
+
+endchoice
+
+endmenu
+
+if SNIC_NXP
+
+source package/boot/nxp/custom/Config.in
+source package/boot/nxp/utils/Config.in
+
+endif
+endmenu

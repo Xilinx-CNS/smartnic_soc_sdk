@@ -1,0 +1,24 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+{
+
+"update_fw_xspi": false,
+"update_fw_xspi_file": "boot_xspi.img",
+
+"update_fw_sd": false,
+"update_fw_sd_file": "boot_sd.img",
+
+"partition_sd_16": true,
+"partition_emmc": false,
+
+"update_sd_boot": true,
+"update_sd_boot_file": "boot.tgz",
+"erase_boot": true,
+
+"reboot": true
+
+}

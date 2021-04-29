@@ -1,0 +1,20 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+[Unit]
+Description=Date Time Update
+After=datetime_start.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=60
+User=root
+ExecStart=/sbin/datetime_update update
+
+[Install]
+WantedBy=multi-user.target

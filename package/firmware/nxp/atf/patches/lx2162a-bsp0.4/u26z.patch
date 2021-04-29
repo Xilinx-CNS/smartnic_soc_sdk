@@ -1,0 +1,543 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/ddr_init.c
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/ddr_init.c
+@@ -0,0 +1,179 @@
++/*
++ * Copyright 2018-2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ */
++
++#include <assert.h>
++#include <errno.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <common/debug.h>
++#include <ddr.h>
++#include <lib/utils.h>
++
++#include <platform_def.h>
++#include <plat_common.h>
++
++#if !defined(CONFIG_DDR_NODIMM)
++#error lx2162au26z requires CONFIG_DDR_NODIMM
++#endif
++
++#if DDRC_NUM_DIMM != 1
++#error lx2160au26z requires DDRC_NUM_DIMM == 1
++#endif
++
++/* SPD-like parameters for DDR4 SDRAM MT40A512M16LY-062:E */
++
++struct dimm_params ddr_raw_timing = {
++	/* DIMM organization parameters */
++	.mpart = "Fixed DDR on board",
++
++	.n_ranks = 1,
++	.die_density = 0x5,
++	.rank_density = 0x100000000,
++	.capacity = 0x100000000,
++	.primary_sdram_width = 64,
++	.ec_sdram_width = 8,
++	.rdimm = 0,
++	.package_3ds = 0, /**/
++	.device_width = 16,
++	.rc = 0x2, /**/
++
++	/* SDRAM device parameters */
++	.n_row_addr = 16,
++	.n_col_addr = 10,
++	.edc_config = 2,
++	.bank_addr_bits = 0,
++	.bank_group_bits = 1,
++	.burst_lengths_bitmask = 0x0c,
++
++	/* mirrored DIMMs */
++	.mirrored_dimm = 0,
++
++	/* DIMM timing parameters */
++	.taa_ps = 13750,
++	.tfaw_ps = 30000,
++
++	/* SDRAM clock periods */
++	.tckmin_x_ps = 625,
++	.tckmax_ps = 1500,
++
++	/* SPD-defined CAS latencies */
++	.caslat_x = 0xfffc00,
++
++	/* basic timing parameters */
++	.trcd_ps = 13750,
++	.trp_ps = 13750,
++	.tras_ps = 32000,
++
++	.trfc1_ps = 350000,
++	.trfc2_ps = 260000,
++	.trfc4_ps = 160000,
++	.trrds_ps = 5300,
++	.trrdl_ps = 6400,
++	.tccdl_ps = 5000,
++	.trfc_slr_ps = 0,
++
++	.trc_ps = 45750, /*457500*/
++	.twr_ps = 15000,
++
++	.refresh_rate_ps = 7800000,
++
++ //       .dq_mapping = { 0x0b, 0x35, 0x04, 0x34, 0x0a, 0x36, 0x0b, 0x36, 0x18,
++ //                  0x2a, 0x16, 0x36, 0x04, 0x2d, 0x03, 0x2d, 0x0d, 0x2e },
++ //       .dq_mapping_ors = 0
++};
++
++int ddr_get_ddr_params(struct dimm_params *pdimm,
++			    struct ddr_conf *conf)
++{
++	conf->dimm_in_use[0] = 1;
++	memcpy(pdimm, &ddr_raw_timing, sizeof(struct dimm_params));
++
++	return 0x1;
++}
++
++int ddr_board_options(struct ddr_info *priv)
++{
++	struct memctl_opt *popts = &priv->opt;
++
++	popts->vref_dimm = 0x24;                /* range 1, 83.4% */
++	popts->rtt_override = 0; /*1*/
++//	 popts->rtt_override_value = 0x5;        /* RTT being used as 60 ohm */
++	popts->rtt_park = 240; /* 120 */
++	popts->otf_burst_chop_en = 0;
++	popts->burst_length = DDR_BL8;
++	popts->trwt_override = 1;
++	popts->bstopre = 0;                     /* auto precharge */
++	popts->addr_hash = 1;
++	popts->trwt = 0x3;
++	popts->twrt = 0x3;
++	popts->trrt = 0x3;
++	popts->twwt = 0x3;
++	popts->vref_phy = 0x60; /* 75% */ /*0x5D 72%*/
++	popts->odt = 48; /*60*/
++	popts->phy_tx_impedance = 48; /*28*/
++	popts->skip2d = 1; /**/
++
++	return 0;
++}
++
++#ifdef NXP_WARM_BOOT
++long long _init_ddr(uint32_t wrm_bt_flg)
++#else
++long long _init_ddr(void)
++#endif
++{
++	struct ddr_info info;
++	struct sysinfo sys;
++	long long dram_size;
++
++	zeromem(&sys, sizeof(sys));
++	if (get_clocks(&sys, NXP_DCFG_ADDR, NXP_SYSCLK_FREQ,
++				NXP_DDRCLK_FREQ, NXP_PLATFORM_CLK_DIVIDER)) {
++		ERROR("System clocks are not set\n");
++		assert(0);
++	}
++	debug("platform clock %lu\n", sys.freq_platform);
++	debug("DDR PLL1 %lu\n", sys.freq_ddr_pll0);
++	debug("DDR PLL2 %lu\n", sys.freq_ddr_pll1);
++
++	zeromem(&info, sizeof(info));
++
++	/* Set two DDRC. This is a lie, but we want code in disable_unused_ddrc()
++	 * to explicitly disable CCN-508 node for the second DDRC */
++	info.num_ctlrs = 2;
++	info.ddr[0] = (void *)NXP_DDR_ADDR;
++	info.ddr[1] = (void *)NXP_DDR2_ADDR;
++	info.phy[0] = (void *)NXP_DDR_PHY1_ADDR;
++	info.phy[1] = (void *)NXP_DDR_PHY2_ADDR;
++	info.clk = get_ddr_freq(&sys, 0, NXP_DCFG_ADDR, NXP_SYSCLK_FREQ,
++				NXP_DDRCLK_FREQ, NXP_PLATFORM_CLK_DIVIDER);
++	if (!info.clk)
++		info.clk = get_ddr_freq(&sys, 1, NXP_DCFG_ADDR, NXP_SYSCLK_FREQ,
++					NXP_DDRCLK_FREQ,
++					NXP_PLATFORM_CLK_DIVIDER);
++	info.dimm_on_ctlr = 1;
++
++	info.warm_boot_flag = DDR_WRM_BOOT_NT_SUPPORTED;
++#ifdef NXP_WARM_BOOT
++	if (wrm_bt_flg) {
++		info.warm_boot_flag = DDR_WARM_BOOT;
++	} else if (wrm_bt_flg == 0x0) {
++		info.warm_boot_flag = DDR_COLD_BOOT;
++	}
++#endif
++
++	dram_size = dram_init(&info, NXP_CCN_HN_F_0_ADDR, 0);
++
++	if (dram_size < 0)
++		ERROR("DDR init failed.\n");
++
++	return dram_size;
++}
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/platform.c
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/platform.c
+@@ -0,0 +1,30 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ */
++
++#include <plat_common.h>
++
++#pragma weak board_enable_povdd
++#pragma weak board_disable_povdd
++
++bool board_enable_povdd(void)
++{
++#ifdef CONFIG_POVDD_ENABLE
++	return true;
++#else
++	return false;
++#endif
++}
++
++bool board_disable_povdd(void)
++{
++#ifdef CONFIG_POVDD_ENABLE
++	return true;
++#else
++	return false;
++#endif
++}
++
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/platform.def
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/platform.def
+@@ -0,0 +1,33 @@
++#
++# Copyright (c) 2015, 2016 Freescale Semiconductor, Inc.
++# Copyright 2017-2020 NXP Semiconductors
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++#
++#------------------------------------------------------------------------------
++#
++# This file contains the basic architecture definitions that drive the build
++#
++# -----------------------------------------------------------------------------
++
++BL2_BIN_XSPI_NOR_END_ADDRESS=0x100000
++
++FLASH_TYPE=MT35XU512A
++NXP_FLEXSPI_FLASH_SIZE=0x10000000
++NXP_XSPI_NOR_UNIT_SIZE=0x20000
++
++# CONFIG_FSPI_ERASE_4K is required to erase 4K sector sizes. This
++# config is enabled for future use cases.
++CONFIG_FSPI_ERASE_4K	:= 0
++
++NUM_OF_DDRC		:= 1
++$(eval $(call add_define_val,NUM_OF_DDRC,${NUM_OF_DDRC}))
++
++DDRC_NUM_DIMM		:= 1
++$(eval $(call add_define_val,DDRC_NUM_DIMM,${DDRC_NUM_DIMM}))
++
++DDRC_NUM_CS            := 2
++$(eval $(call add_define_val,DDRC_NUM_CS,${DDRC_NUM_CS}))
++# -----------------------------------------------------------------------------
++
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/platform.mk
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/platform.mk
+@@ -0,0 +1,30 @@
++#
++# Copyright 2018-2020 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++# board-specific build parameters
++BOOT_MODE	:= 	flexspi_nor
++BOARD		:=	lx2162au26z
++WARM_BOOT	:=	yes
++NXP_COINED_BB	:=	no
++POVDD_ENABLE	:=	no
++
++ifeq (${POVDD_ENABLE},yes)
++$(eval $(call add_define,CONFIG_POVDD_ENABLE))
++endif
++
++include plat/nxp/soc-lx2160/lx2162au26z/platform.def
++$(eval $(call add_define,CONFIG_${FLASH_TYPE}))
++$(eval $(call add_define,NXP_FLEXSPI_FLASH_SIZE))
++$(eval $(call add_define_val,CONFIG_FSPI_ERASE_4K,${CONFIG_FSPI_ERASE_4K}))
++$(eval $(call add_define,NXP_FLEXSPI_FLASH_UNIT_SIZE))
++$(eval $(call add_define_val,WARM_BOOT_FLAG_BASE_ADDR,'${BL2_BIN_XSPI_NOR_END_ADDRESS} - 2 * ${NXP_XSPI_NOR_UNIT_SIZE}'))
++$(eval $(call add_define_val,PHY_TRAINING_REGS_ON_FLASH,'${BL2_BIN_XSPI_NOR_END_ADDRESS} - ${NXP_XSPI_NOR_UNIT_SIZE}'))
++
++# get SoC common build parameters
++include plat/nxp/soc-lx2160/soc.mk
++
++BL2_SOURCES	+=	${BOARD_PATH}/ddr_init.c	\
++			${BOARD_PATH}/platform.c
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/platform_def.h
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/platform_def.h
+@@ -0,0 +1,197 @@
++/*
++ * Copyright 2018-2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ */
++
++#ifndef __PLATFORM_DEF_H__
++#define __PLATFORM_DEF_H__
++
++#include <arch.h>
++#include <cortex_a72.h>
++#include <policy.h>
++#include <soc.h>
++#include <tbbr_img_def.h>
++
++#if defined(IMAGE_BL2)
++#define SEC_MEM_NON_COHERENT
++#endif
++
++#if defined(IMAGE_BL31)
++#define LS_SYS_TIMCTL_BASE		0x2890000
++#define PLAT_LS_NSTIMER_FRAME_ID	0
++#define LS_CONFIG_CNTACR		1
++#endif
++/* Special value used to verify platform parameters from BL2 to BL31 */
++
++#define LS_BL31_PLAT_PARAM_VAL		0x0f1e2d3c4b5a6978ULL
++#define PLATFORM_LINKER_ARCH            aarch64
++#define PLATFORM_LINKER_FORMAT		"elf64-littleaarch64"
++/******************************************************************************
++ *  Board specific defines
++ *****************************************************************************/
++
++#define NXP_SYSCLK_FREQ		100000000
++#define NXP_DDRCLK_FREQ		100000000
++
++/* UART related definition */
++#define NXP_CONSOLE_ADDR	NXP_UART_ADDR
++#define NXP_CONSOLE_BAUDRATE	115200
++
++#define DDRC_NUM_DIMM          1
++#define CONFIG_DDR_NODIMM
++
++#define CONFIG_DDR_ECC_EN
++#define CONFIG_DDR_ADDR_DEC	/* enable address decoding feature */
++
++#define PLAT_DEF_DRAM0_SIZE	0x80000000	/*  2G */
++
++/* Board specific - size of QSPI Flash on board */
++#if FLEXSPI_NOR_BOOT
++#define NXP_FLEXSPI_FLASH_SIZE 0x10000000
++#endif
++
++
++/* TBD Put all memory specific defines here */
++
++/******************************************************************************
++ * Required platform porting definitions common to all ARM standard platforms
++ *****************************************************************************/
++
++/* Size of cacheable stacks */
++#if defined(IMAGE_BL2)
++#if defined(TRUSTED_BOARD_BOOT)
++#define PLATFORM_STACK_SIZE	0x2000
++#else
++#define PLATFORM_STACK_SIZE	0x1000
++#endif
++#elif defined(IMAGE_BL31)
++#define PLATFORM_STACK_SIZE	0x1000
++#endif
++
++#define FIRMWARE_WELCOME_STR_LS_BL2	"Welcome to LX2162 u26z BL2 Phase\n"
++#define FIRMWARE_WELCOME_STR_LS_BL31	"Welcome to LX2162 u26z BL31 Phase\n"
++
++/* This is common for all platforms where
++ * 64K is reserved for Secure memory
++ */
++/* 64M Secure Memory */
++#define NXP_SECURE_DRAM_SIZE	(64 * 1024 * 1024)
++
++/* 2M Secure EL1 Payload Shared Memory */
++#define NXP_SP_SHRD_DRAM_SIZE	(2 * 1024 * 1024)
++
++/* Non secure memory */
++#define NXP_NS_DRAM_SIZE	(NXP_DRAM0_SIZE - \
++				(NXP_SECURE_DRAM_SIZE + NXP_SP_SHRD_DRAM_SIZE))
++
++#define NXP_NS_DRAM_ADDR	NXP_DRAM0_ADDR
++
++#ifdef TEST_BL31
++#define NXP_SECURE_DRAM_ADDR 0
++#else
++#define NXP_SECURE_DRAM_ADDR	(NXP_NS_DRAM_ADDR + NXP_DRAM0_SIZE - \
++				(NXP_SECURE_DRAM_SIZE  + NXP_SP_SHRD_DRAM_SIZE))
++#endif
++
++#define NXP_SP_SHRD_DRAM_ADDR	(NXP_NS_DRAM_ADDR + NXP_DRAM0_SIZE \
++				- NXP_SP_SHRD_DRAM_SIZE)
++
++#define BL2_BASE		(NXP_OCRAM_ADDR + NXP_ROM_RSVD + CSF_HDR_SZ)
++#ifdef SD_BOOT
++#define BL2_LIMIT		(NXP_OCRAM_ADDR + NXP_OCRAM_SIZE \
++				- NXP_SD_BLOCK_BUF_SIZE)
++#else
++#define BL2_LIMIT		(NXP_OCRAM_ADDR + NXP_OCRAM_SIZE)
++#endif
++#define BL2_TEXT_LIMIT		(BL2_LIMIT)
++
++/* 2 MB reserved in secure memory for DDR */
++#define BL31_BASE		NXP_SECURE_DRAM_ADDR
++#define BL31_SIZE		(0x200000)
++#define BL31_LIMIT		(BL31_BASE + BL31_SIZE)
++
++/* Put BL32 in secure memory */
++#define BL32_BASE		(NXP_SECURE_DRAM_ADDR + BL31_SIZE)
++#define BL32_LIMIT		(NXP_SECURE_DRAM_ADDR + \
++				NXP_SECURE_DRAM_SIZE + NXP_SP_SHRD_DRAM_SIZE)
++
++/* BL33 memory region */
++/* Hardcoded based on current address in u-boot */
++#define BL33_BASE		0x82000000
++#define BL33_LIMIT		(NXP_NS_DRAM_ADDR + NXP_NS_DRAM_SIZE)
++
++/* SD block buffer */
++#define NXP_SD_BLOCK_BUF_SIZE	(0x8000)
++#define NXP_SD_BLOCK_BUF_ADDR	(NXP_OCRAM_ADDR + NXP_OCRAM_SIZE \
++				- NXP_SD_BLOCK_BUF_SIZE)
++
++#define PHY_GEN2_FW_IMAGE_BUFFER	(ULL(0x18000000) + CSF_HDR_SZ)
++
++/* IO defines as needed by IO driver framework */
++/* TBD Add how to reach these numbers */
++#define MAX_IO_DEVICES		4
++#define MAX_IO_BLOCK_DEVICES	1
++#define MAX_IO_HANDLES		4
++
++
++/*
++ * FIP image defines - Offset at which FIP Image would be present
++ * Image would include Bl31 , Bl33 and Bl32 (optional)
++ */
++#ifdef POLICY_FUSE_PROVISION
++#define MAX_FIP_DEVICES		3
++#define FUSE_BUF		ULL(0x81000000)
++#define FUSE_SZ			0x80000
++#endif
++
++#ifndef MAX_FIP_DEVICES
++#define MAX_FIP_DEVICES		2
++#endif
++
++#define PLAT_FIP_OFFSET		0x100000
++#define PLAT_DDR_FIP_OFFSET		0x200000
++#define PLAT_FIP_MAX_SIZE	0x100000
++
++/* Check if this size can be determined from array size */
++#if defined(IMAGE_BL2)
++#define MAX_MMAP_REGIONS	8
++#define MAX_XLAT_TABLES		6
++#elif defined(IMAGE_BL31)
++#define MAX_MMAP_REGIONS	9
++#define MAX_XLAT_TABLES		9
++#elif defined(IMAGE_BL32)
++#define MAX_MMAP_REGIONS	8
++#define MAX_XLAT_TABLES		9
++#endif
++
++/******************************************************************************/
++/*
++ * ID of the secure physical generic timer interrupt used by the BL32.
++ */
++#define BL32_IRQ_SEC_PHY_TIMER	29
++
++#define BL31_WDOG_SEC		89
++
++#define BL31_NS_WDOG_WS1	108
++/*
++ * Define properties of Group 1 Secure and Group 0 interrupts as per GICv3
++ * terminology. On a GICv2 system or mode, the lists will be merged and treated
++ * as Group 0 interrupts.
++ */
++#define PLAT_LS_G1S_IRQ_PROPS(grp) \
++	INTR_PROP_DESC(BL32_IRQ_SEC_PHY_TIMER, GIC_HIGHEST_SEC_PRIORITY, grp, \
++			GIC_INTR_CFG_EDGE)
++
++/* SGI 15 and Secure watchdog interrupts assigned to Group 0 */
++#define PLAT_LS_G0_IRQ_PROPS(grp)	\
++	INTR_PROP_DESC(BL31_WDOG_SEC, GIC_HIGHEST_SEC_PRIORITY, grp, \
++			GIC_INTR_CFG_EDGE), \
++	INTR_PROP_DESC(BL31_NS_WDOG_WS1, GIC_HIGHEST_SEC_PRIORITY, grp, \
++			GIC_INTR_CFG_EDGE), \
++	INTR_PROP_DESC(15, GIC_HIGHEST_SEC_PRIORITY, grp, \
++			GIC_INTR_CFG_LEVEL)
++
++
++#endif
+Index: atf/plat/nxp/soc-lx2160/lx2162au26z/policy.h
+===================================================================
+--- /dev/null
++++ atf/plat/nxp/soc-lx2160/lx2162au26z/policy.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright 2018-2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ */
++
++#ifndef _POLICY_H
++#define	_POLICY_H
++
++/* Following defines affect the PLATFORM SECURITY POLICY */
++
++/* set this to 0x0 if the platform is not using/responding to ECC errors
++ * set this to 0x1 if ECC is being used (we have to do some init)
++ */
++#define  POLICY_USING_ECC 0x0
++
++/* Set this to 0x0 to leave the default SMMU page size in sACR
++ * Set this to 0x1 to change the SMMU page size to 64K
++ */
++#define POLICY_SMMU_PAGESZ_64K 0x1
++
++/*
++ * POLICY_PERF_WRIOP = 0 : No Performance enhancement for WRIOP RN-I
++ * POLICY_PERF_WRIOP = 1 : No Performance enhancement for WRIOP RN-I = 7
++ * POLICY_PERF_WRIOP = 2 : No Performance enhancement for WRIOP RN-I = 23
++ */
++#define POLICY_PERF_WRIOP 0
++
++/*
++ * set this to '1' if the debug clocks need to remain enabled during
++ * system entry to low-power (LPM20) - this should only be necessary
++ * for testing and NEVER set for normal production
++ */
++#define POLICY_DEBUG_ENABLE 0
++
++
++#endif /* _POLICY_H */

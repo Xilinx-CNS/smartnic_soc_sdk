@@ -1,0 +1,137 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+#mainmenu "Balloonboard Configuration"
+menu "Target Selection"
+
+choice
+prompt "Target Architecture"
+	default SNIC_ARCH_ARM64
+	help
+	  Select target architecture.
+
+config SNIC_ARCH_ARM
+	bool "ARM"
+	depends on SNIC_DEVELOPER
+	help
+	  ARM 32 bit architecture.
+
+config SNIC_ARCH_ARM64
+	bool "ARM64"
+	help
+	  ARM64 64 bit architecture.
+
+endchoice
+
+config SNIC_NXP
+	bool
+	default 'n'
+
+choice
+	prompt "SoC"
+	default SNIC_SOC_ARM if SNIC_ARCH_ARM
+	default SNIC_SOC_LX2162A if SNIC_ARCH_ARM64
+	help
+	  Select target SoC
+
+config SNIC_SOC_ARM
+	bool "Generic 32-bit ARM"
+	depends on SNIC_ARCH_ARM
+	help
+
+config SNIC_SOC_ARM64
+	bool "Generic 64-bit ARM"
+	depends on SNIC_ARCH_ARM64 && SNIC_DEVELOPER
+	help
+
+config SNIC_SOC_LX2160A
+	bool "NXP LX2160a"
+	depends on SNIC_ARCH_ARM64
+	select SNIC_NXP
+	help
+
+config SNIC_SOC_LX2162A
+	bool "NXP LX2162a"
+	depends on SNIC_ARCH_ARM64
+	select SNIC_NXP
+	help
+
+endchoice
+
+choice
+	prompt "Board"
+	default SNIC_LX2162AU26Z if SNIC_SOC_LX2162A
+	default SNIC_LX2160ARDB if SNIC_SOC_LX2160A
+	help
+	  Select target board.
+
+config SNIC_LX2160ARDB
+	depends on SNIC_SOC_LX2160A
+	bool "NXP LX2160A RDB Board"
+	select SNIC_NXP
+	help
+	  Support for NXP LX2160A RDB board
+
+config SNIC_LX2162AU26Z
+	depends on SNIC_SOC_LX2162A
+	bool "NXP LX2162A U26z Board"
+	select SNIC_NXP
+	help
+	  Support for NXP LX2162A U26z board
+
+endchoice
+
+choice
+	prompt "Board Variant"
+	default SNIC_VARIANT_DEFAULT
+	help
+	  Set the board variant
+
+config SNIC_VARIANT_DEFAULT
+        bool "Generic Build"
+        help
+          Default build
+
+config SNIC_VARIANT_NXP_LIGHT
+	bool "NXP Reduced footprint"
+	depends on SNIC_NXP
+	help
+	  Reference board variant
+
+endchoice
+
+if SNIC_NXP
+choice
+	prompt "QorIQ Git tag"
+	default SNIC_QORIQ_TAG_LX2162A-BSP0.4 if SNIC_LX2162AU26Z
+	default SNIC_QORIQ_TAG_LSDK_20.04 if SNIC_LX2160ARDB
+	help
+	  Set the git tag to use for QorIQ git repo
+
+config SNIC_QORIQ_TAG_LSDK_20.04
+	bool "Tag LSDK-20.04"
+	depends on SNIC_SOC_LX2160A
+	help
+	  Default Git repo tag
+
+config SNIC_QORIQ_TAG_LX2162A-BSP0.2
+	depends on SNIC_SOC_LX2162A
+	bool "Tag lx2162a-bsp0.2"
+	help
+	  Default Git repo tag
+
+config SNIC_QORIQ_TAG_LX2162A-BSP0.4
+	depends on SNIC_SOC_LX2162A
+	bool "Tag lx2162a-bsp0.4"
+	help
+	  Default Git repo tag
+
+endchoice
+endif
+
+
+endmenu

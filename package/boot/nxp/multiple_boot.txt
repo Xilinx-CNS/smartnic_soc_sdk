@@ -1,0 +1,58 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo Setting bootargs for root=/dev/ROOT
+setenv bootargs "console=ttyAMA0,115200 root=/dev/ROOT earlycon=pl011,mmio32,0x21c0000 default_hugepages=1024m hugepagesz=1024m hugepages=2 pci=pcie_bus_perf ${bootargs_extra}"
+setenv load_dtb load mmc DPART ${ftd_addr_r} DTB
+setenv do_bootefi bootefi 0xa0000000 0x90000000
+
+setenv efi_images EFI_IMAGES
+setenv efi_zimages EFI_ZIMAGES
+setenv fit_images FIT_IMAGES
+
+for img in ${efi_images} do
+  if test -e mmc KPART ${img}; then
+    echo "Using mmc KPART ${img}";
+    load mmc KPART 0xa0000000 ${img};
+    run load_dtb;
+    run do_bootefi;
+  else
+    echo "skipping ${img}";
+  fi;
+done;
+
+for part in "0:3 0:2"; do
+
+for img in ${efi_zimages} do
+  if test -e mmc ${part} ${img}; then
+    echo "Using mmc ${part} ${img}";
+    load mmc KPART 0x90000000 ${img};
+    unzip 0x90000000 0xa0000000;
+    run load_dtb;
+    run do_bootefi;
+  else
+    echo "skipping ${part} ${img}";
+  fi;
+done;
+
+done;
+
+for img in ${fit_images} do
+  if test -e mmc DPART ${img}; then
+    echo "Using ${img}";
+    load mmc DPART 0x90000000 ${img};
+    run load_dtb;
+    bootm 0xa0000000 - 0x90000000;
+  else
+    echo "skipping ${img}";
+  fi;
+done;
+
+#echo Loading KERNEL from mmc device KPART
+#echo Loading DTB from mmc device DPART
+#load mmc KPART 0xa0000000 KERNEL
+#load mmc DPART 0x90000000 DTB
+#bootefi 0xa0000000 0x90000000

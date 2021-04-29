@@ -1,0 +1,684 @@
+#!/usr/bin/micropython
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+import os, json, re, time, argparse, sys
+
+
+I2CBUS = 0
+I2CDEV = 0X48
+I2CSCRATCHREG = 9
+RECOVERY_BIT = 0X80
+RECOVERED_BIT = 0x40
+
+DEBUG = True
+
+helpmsg = '''
+Copyright 2020-2021 Xilinx, Inc.
+All rights reserved.
+
+Xilinx Alveo SmartNIC utility to update SoC
+
+usage: update_maintenance --image-path boottgz
+
+Utility to update SoC
+
+arguments:
+  -h, --help                    show this help message and exit
+  --image-path <FILE>           Packed tgz file with all required binaries(boot_mmc1.tgz)
+  --debug                       Print debug messages
+'''
+
+class MyArgumentParser(argparse.ArgumentParser):
+    def usage(self, full):
+        print (helpmsg)
+
+
+parser = MyArgumentParser(description='Update Maintenance')
+parser.add_argument('--image-path', metavar=(": Packed tgz file with all required binaries"), dest='boottgz', type = str, nargs=1, default=None)
+parser.add_argument('--update-rootfs', metavar=(": Rootfs tar.gz path"), dest='rfspath', type = str, nargs=1, default=None)
+parser.add_argument('--debug', metavar=(": Print debug messages"), dest='dbg', default = False, action="store_true")
+parser.add_argument('--auto', metavar=(": Run Recovery/Upgrade automatically"), dest='auto', default = False, action="store_true")
+
+def debug(txt):
+    global DEBUG
+    if DEBUG:
+        print("DEBUG: " + txt)
+
+
+def disksize(str):
+    ret, str = run_cmd("fdisk -l %s" % str)
+    rexp = r"([0-9]+) GB"
+    pattern = re.compile(rexp)
+    match = pattern.findall(str)
+    # TODO check weather match exist only then access array index 0
+    return int(match[0])
+
+def sizein2pow(size):
+    ret = 1
+
+    for idx in range(32):
+        n = 1 << idx
+        if n > size:
+            break;
+        ret = n
+
+    return ret
+
+def mount_devpart(devpart, mountpoint, opt=""):
+    ret = True
+
+    if path_exists(devpart):
+        if not path_exists(mountpoint):
+            os.mkdir(mountpoint)
+        if path_exists(mountpoint):
+            umount_devpart(mountpoint)
+            r, str = run_cmd("mount %s %s %s" % (opt, devpart, mountpoint))
+            debug("Mounting device %s to folder %s,  status: %d" % (devpart, mountpoint, r))
+            if r != 0:
+                print("Error: %s" % str)
+
+    else:
+        ret = False
+
+    return ret
+
+def umount_devpart(mountpoint):
+    retval = 1
+    msg = ""
+    retval, msg = run_cmd("umount %s" % mountpoint)
+    return retval == 0
+
+def erase_dir(dirpath):
+    if path_exists(dirpath):
+        debug("Erasing " + dirpath + "/*")
+        run_cmd("rm -rf %s%s" % (dirpath, "/*"))
+
+def run_cmd(cmd):
+    cmd = "%s 1> /tmp/out 2> /tmp/out1" % cmd
+    debug (cmd)
+    ret = os.system(cmd)
+    if ret != 0:
+        file = "/tmp/out1"
+    else:
+        file = "/tmp/out"
+    f = open(file, "r")
+    ls = f.readlines()
+    str = ""
+    for l in ls:
+        str = str + l
+
+    return ret, str
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+
+def file_size(filename):
+    if path_exists(filename):
+        stat = os.stat(filename)
+        return stat[6]
+    return 0
+
+def find_config(key, default=None, conf = None):
+
+    if not conf is None:
+        if key in conf:
+            value = conf[key]
+            debug("parsing " + key + " returned " + str(value))
+            return value
+
+    return default
+
+def validate_bootfs(rfspath):
+
+    errmsg = ""
+    debug ("Validating %s" % rfspath)
+    if not path_exists(rfspath):
+        errmsg = "Error: %s File not found" % self.rfspath[0]
+        return False, errmsg
+    cmd = "gzip -d -c %s | tar -tv boot/" % rfspath
+    ret, str = run_cmd(cmd)
+    if "boot.scr" not in str:
+        errmsg = "Error: Seems invalid file passed %s" % rfspath
+        return False, str + "\n" + errmsg
+    return True, ""
+
+
+def validate_rootfs(rfspath):
+
+    errmsg = ""
+    debug ("Validating %s" % rfspath)
+    if not path_exists(rfspath):
+        errmsg = "Error: %s File not found" % rfspath
+        return False, errmsg
+    cmd = "gzip -d -c %s | tar -tv ./proc/" % rfspath
+    ret, str = run_cmd(cmd)
+    if ("/proc" not in str) or ret != 0:
+        errmsg = "Error: Seems invalid root filesystem passed %s" % rfspath
+        return False, str + "\n" + errmsg
+
+    return True, ""
+
+class maint_obj:
+    def __init__(self, mmcidx, args):
+        # self.dir = dir
+        self.mmcidx = mmcidx
+        self.rename = True
+        self.reboot = False
+        self.run = None
+        self.install_rootfs = False
+        self.rootfs_tgz = None
+        self.maindir = "/mnt/maint"
+        self.rootdir = "/mnt/rootfs"
+        self.jffs2 = "/tmp/rwfs/"
+        self.sdir = "/mnt/sd"
+        self.blockdev = "/dev/mmcblk%d" % mmcidx
+        self.sddev = "/dev/sda1"
+        self.mfile = "/maintenance/maintenance"
+        self.path = self.maindir + self.mfile
+        self.erase = path_exists(self.path)
+        self.install_xspi = None
+        self.xspi_img = ""
+        self.host_conf = "/etc/update-system.json"
+        self.hostjson = None
+        self.remote_conf = "/tmp/config.json"
+        self.tmp_firmware_file = "/tmp/firmware.img"
+        self.tmp_boot_tgz = "/tmp/boot.tgz"
+        self.update_mmc_boot = None
+        self.update_mmc_boot_file = False
+        self.install_boot_tgz = False
+        self.boot_tgz = None
+        self.erase_boot = True
+        self.usb_upgrade = False
+        self.args = args
+
+    def parse_upgrade_json(self):
+        with open(self.path, "r") as f:
+            try:
+                maint = json.load(f)
+                if "erase" in maint.keys():
+                    self.erase = maint["erase"] == True
+                if "rename" in maint.keys():
+                    self.rename = maint["rename"] == True
+                if "reboot" in maint.keys():
+                    self.reboot = maint["reboot"] == True
+                if ("install_rootfs" in maint.keys()) and ("rootfs_tgz" in maint.keys()):
+                    self.install_rootfs = maint["install_rootfs"] == True
+                    self.rootfs_tgz = maint["rootfs_tgz"]
+                if ("install_xspi" in maint.keys()) and ("xspi_img" in maint.keys()):
+                    self.install_xspi = maint["install_xspi"] == True
+                    self.xspi_img = maint["xspi_img"]
+                if ("install_boot_tgz" in maint.keys()) and ("boot_tgz" in maint.keys()):
+                    self.install_boot_tgz = maint["install_boot_tgz"] == True
+                    self.boot_tgz = maint["boot_tgz"]
+                if "upgrade_from_usb" in maint.keys():
+                    self.usb_upgrade = maint["upgrade_from_usb"] == True
+
+            except:
+                if file_size(self.path) > 0:
+                    print("Error: json bad from path %s" % self.path)
+                    self.erase = False
+                    self.rename = False
+                    self.reboot = False
+
+    def parse_hostconf(self):
+
+        ret = False
+        if path_exists(self.host_conf):
+            with open(self.host_conf, "r") as f:
+                try:
+                    # TODO do we need to maintain this in class or can exist as local
+                    self.hostjson = json.load(f)
+                    ret = True
+                except:
+                    if file_size(self.host_conf) > 0:
+                        print("Error: json bad from path %s" % self.config_file)
+
+        self.update_server = find_config("update_server", None, self.hostjson)
+        self.update_transport = find_config("update_server_transport", "http", self.hostjson)
+        self.update_dir = find_config("update_dir", None, self.hostjson)
+        self.update_config_file = find_config("update_config_file", None, self.hostjson)
+        self.update_server_port = find_config("update_server_port", 80, self.hostjson)
+        if "0.0.0.0" in self.update_server:
+            print ("Pull mode server not configured.")
+            ret = False
+        return ret
+
+    def parse_remoteconf(self):
+        ret = False
+        if self.fetch_file(self.update_config_file, "/tmp/update-system.json"):
+            self.remote_conf = "/tmp/update-system.json"
+        elif path_exists("/etc/update-system.json"):
+            self.remote_conf = "/etc/update-system.json"
+        else:
+            self.remote_conf = None
+
+        with open(self.remote_conf, "r") as f:
+            try:
+                # TODO do we need to maintain this in class or can exist as local
+                self.remote_json = json.load(f)
+                ret = True
+            except:
+                if file_size(self.remote_conf) > 0:
+                    print("Error: json bad from path %s" % self.remote_conf)
+                return ret
+
+        self.update_mmc_boot = find_config("update_mmc%d_boot" % self.mmcidx, False, self.remote_json)
+        self.update_mmc_boot_file = find_config("update_mmc%d_boot_file" % self.mmcidx, None, self.remote_json)
+        # TODO Do we need to give option of reboot. Seems no to me
+        self.reboot = find_config("reboot", False, self.remote_json)
+
+        return ret
+    def mount_usb(self):
+        if not self.is_usb_present():
+            return False
+        print("Mounting USB")
+        return mount_devpart(self.sddev, self.sdir, "-t vfat")
+
+    def  umount_usb(self):
+        umount_devpart(self.sddev)
+
+    def mount_p2p3(self):
+        if not mount_devpart(self.blockdev + "p2", self.maindir):
+            print ("Error: Maintenance mount error")
+
+        if not mount_devpart(self.blockdev + "p3", self.rootdir):
+            print ("Error: Rootfs mount error")
+
+    def unmount_p2p3(self):
+        if not umount_devpart(self.maindir):
+            print ("Error: Maintenance unmount error")
+
+        if not umount_devpart(self.rootdir):
+            print ("Error: Rootfs unmount error")
+
+    def partition_mmc(self):
+        # first see if flash needs partitioning
+        debug("Start Partitioning of disk")
+        dsize = disksize(self.blockdev)
+        dsize = sizein2pow(dsize)
+        if "mmcblk%d" % self.mmcidx in self.blockdev:
+            run_cmd("mkpart mmcblk%d %d" % (self.mmcidx, dsize))
+
+    def is_partition_required(self):
+
+        part = False
+
+        p1 = self.blockdev + "p1"
+        p2 = self.blockdev + "p2"
+        p3 = self.blockdev + "p3"
+
+        """
+            Check can be added for size verification and formatting is done or not
+        """
+        if not path_exists(p1):
+            part = True
+        if not path_exists(p2):
+            part = True
+        if not path_exists(p3):
+            part = True
+
+        return part
+
+    def is_upgrade_required(self):
+        retval = False
+        if path_exists(self.maindir + self.mfile):
+            retval = True
+
+        return retval
+
+    def set_i2c_regb(self, bus, dev, addr, val):
+
+        cmd = "i2cset -y %d %d %d %d" % (bus, dev, addr, val)
+        ret, str = run_cmd(cmd)
+        if ret != 0:
+            print("Error: command %s failed" % cmd)
+            print("%s" % str)
+            return False
+
+        return True
+    def get_i2c_regb(self, bus, dev, addr):
+
+        cmd = "i2cget -y %d %d %d" % (bus, dev, addr)
+        ret, str = run_cmd(cmd)
+        if ret != 0:
+            print("Error: command %s failed" % cmd)
+            print("%s" % str)
+            return False, 0
+ 
+        val = int(str, 16)
+        return True, val
+
+    def is_local_recovery(self, reg9):
+        retval = False
+
+        if reg9 & RECOVERY_BIT:
+            if reg9 & RECOVERED_BIT == 0: 
+                retval = True
+
+        return retval
+
+    def is_remote_recovery(self,reg9):
+        retval = False
+
+        if reg9 & RECOVERY_BIT and reg9 & RECOVERED_BIT:
+            retval = True
+        if not path_exists(self.maindir + "/boot"):
+            retval = True
+
+        return retval
+
+    def is_usb_present(self):
+        # validate sda device and size check to decide usb is there,
+        if not path_exists(self.sddev):
+            return False
+        return True
+
+    def is_mmc_bootable(self):
+        if path_exists(self.maindir + "/boot"):
+            return True
+        return False
+
+    def populate_dir(self, tgz, wheredir):
+        retval = 1
+        msg = ""
+        if path_exists(tgz) and path_exists(wheredir):
+            erase_dir(wheredir)
+            cmdline = "gzip -d -c " + tgz + " | tar -x -C " + wheredir
+            debug("Populating " + wheredir + " from " + tgz + " using cmdline = " + cmdline)
+            retval, msg = run_cmd(cmdline)
+        else:
+            print("Error: File %s , or  %s not exist" % (tgz, wheredir))
+        return retval == 0
+
+    def fetch_file(self, file, dest):
+        if (self.update_transport is None) or (self.update_server is None) or (self.update_dir is None) or (
+                file is None) or (dest is None):
+            return False
+        url = "%s://%s:%s%s/%s" % (self.update_transport, self.update_server, self.update_server_port, self.update_dir, file)
+        debug("Trying to load " + dest + " from " + url)
+        if path_exists(dest):
+            run_cmd("unlink " + dest)
+        cmd = "curl -k -L -o %s %s" % (dest, url)
+
+        for i in (1,):
+            r, str = run_cmd(cmd)
+            if r == 0:
+                break
+            print("Error: Failed with error %d, %s" %(r, str))
+            print("Retry")
+            time.sleep(2)
+        if r != 0:
+            print("Manually run \"update_maintenance --auto\" command once network is reachable")
+
+        return path_exists(dest)
+
+    def fetch_usbfile(self, file, dest):
+        if not path_exists(file):
+            return False
+
+        if path_exists(dest):
+            run_cmd("unlink " + dest)
+        cmd = "ln -s %s %s" % (file, dest)
+        r, str = run_cmd(cmd)
+        if r != 0:
+            print("ret %d, %s" % r, str)
+            print("Error: Soft link file %s to %s from USB failed" % (file, dest))
+            return False
+        return True
+
+    def do_upgrade(self):
+
+        debug("\n\tUpgrade started\n")
+        retval = True
+        self.parse_upgrade_json()
+        if self.usb_upgrade:
+            retval = self.do_usb_upgrade()
+        else:
+            retval = self.do_mmc_upgrade()
+
+        self.finish_upgrade()
+        return retval
+
+    def do_local_recovery(self):
+        debug("\n\t Recovery from mmc\n")
+        val = 0
+        print ("Decompressing root file system. It will take around 2 minute")
+        retval = self.populate_dir(self.maindir + '/data/rootfs.tgz', self.rootdir)
+        if retval:
+            retval, val = self.get_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG)
+        val = val | RECOVERED_BIT
+        val = val & ~RECOVERY_BIT
+        if retval:
+                self.set_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG, val)
+                self.reboot = True
+        return retval
+
+    def cmd_boottgz(self,args):
+        boottgz = args.boottgz[0]
+        self.process_boottgz(boottgz)
+
+    def process_cmdline(self):
+        """Always Return True if there is any Command line argument detected"""
+        ret = False
+
+        if self.args.auto:
+            # Allow Auto upgrade/recovery to run
+            return False
+
+        if self.args.boottgz is not None:
+            ret = True
+            self.cmd_boottgz(args)
+
+        if self.args.rfspath is not None:
+            ret = True
+            self.cmd_rfspath(args)
+
+
+        return ret
+
+    def cmd_rfspath(self, args):
+
+        retval, errmsg = validate_rootfs(args.rfspath[0])
+        if not retval:
+            print(errmsg)
+            return False
+        print ("Decompressing root file system. It will take around 2 minute")
+        retval = self.populate_dir(args.rfspath[0], self.rootdir)
+        if not retval:
+            print("Error: un-compressing %s" % args.rfspath[0])
+            return False
+        return True
+    
+    def clear_eeprom(self):
+        if path_exists("/sys/bus/i2c/devices/0-0050/eeprom"):
+            cmd = "dd if=/dev/zero of=/sys/bus/i2c/devices/0-0050/eeprom bs=512 count=8 seek=2"
+            run_cmd(cmd)
+
+    def process_boottgz(self, boottgz):
+
+        print("Starting SoC update...")
+        retval, errmsg = validate_bootfs(boottgz)
+        if not retval:
+            print(errmsg)
+            return False
+        self.tmp_boot_tgz = boottgz
+        debug("Installing " + self.tmp_boot_tgz + " over boot partition")
+        retval = self.populate_dir(self.tmp_boot_tgz, self.maindir)
+        if not retval:
+            print("Error: Are you sure file passed is boot_mmc1.tgz")
+        if retval:
+            print ("Decompressing root file system. It will take around 2 minute")
+            retval = self.populate_dir(self.maindir + '/' + "data/rootfs.tgz", self.rootdir)
+
+        if retval:
+            self.clear_eeprom()
+        if retval and path_exists(self.maindir + '/' + "data/boot_xspi.img"):
+            print("Updating maintenance kernel will take around 5 minutes")
+            retval = run_cmd("update_xspi " + self.maindir + '/' + "data/boot_xspi.img")[0] == 0
+        if retval:
+            print("SoC updated with new image. Reboot to apply changes")
+
+        self.finish_upgrade()
+        return retval
+
+    def do_remote_recovery(self):
+        debug("\n\t Recovery from remote server\n")
+        retval = True
+        retval = self.parse_hostconf()
+        if not retval:
+            return retval
+        self.parse_remoteconf()
+
+        if self.update_mmc_boot:
+            retval = self.fetch_file(self.update_mmc_boot_file, self.tmp_boot_tgz)
+
+            if retval and file_size(self.tmp_boot_tgz) > 100000:
+                debug("Installing " + self.tmp_boot_tgz + " over boot partition")
+                if self.erase_boot:
+                    erase_dir(self.maindir)
+                retval = self.process_boottgz(self.tmp_boot_tgz)
+            else:
+                print("Error: Unable to find " + self.tmp_boot_tgz)
+                retval = False
+            if retval:
+                retval, val = self.get_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG)
+                val = val & ~RECOVERY_BIT
+            if retval:
+                self.set_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG, val)
+        else:
+            retval = False
+
+        return retval
+
+    def do_usb_recovery(self):
+        retval = True
+        msg = ""
+        if not self.mount_usb():
+            return False
+
+        if not self.fetch_usbfile("%s/boot/boot_mmc%s.tgz" % (self.sdir, self.mmcidx), self.tmp_boot_tgz):
+            self.umount_usb()
+            return False
+        retval = self.process_boottgz(self.tmp_boot_tgz)
+        if not retval:
+            return False
+        self.reboot = True
+        self.umount_usb()
+        return True
+
+    def do_usb_upgrade(self):
+
+        if not self.mount_usb():
+            return False
+
+        if self.install_xspi:
+            if self.fetch_usbfile("%s/%s" % (self.sdir, self.xspi_img), "/tmp/xspi.img"):
+                print("Updating maintenance kernel will take around 5 minutes")
+                run_cmd("update_xspi " + "/tmp/xspi.img")
+
+        if self.install_rootfs:
+            if not self.fetch_usbfile("%s/%s" % (self.sdir, self.rootfs_tgz), "/tmp/rootfs.tgz"):
+                self.umount_usb()
+                return False
+            print ("Decompressing root file system. It will take around 2 minute")
+            self.populate_dir("/tmp/rootfs.tgz", self.rootdir)
+
+        self.umount_usb()
+        return True
+
+    def do_mmc_upgrade(self):
+
+        retval = False
+        xspi = self.maindir + '/' + self.xspi_img
+        if self.install_xspi and path_exists(xspi):
+            print("Updating maintenance kernel will take around 5 minutes")
+            retval = run_cmd("update_xspi " + xspi)[0] == 0
+            run_cmd("rm -rf %s" % xspi)
+        if self.install_rootfs:
+            print ("Decompressing root file system. It will take around 2 minute")
+            retval = self.populate_dir(self.maindir + '/' + self.rootfs_tgz, self.rootdir)
+            run_cmd("rm -rf %s/%s" % (self.maindir, self.rootfs_tgz))
+        if self.install_boot_tgz and path_exists(self.maindir + '/' + self.boot_tgz):
+            run_cmd("mv %s/%s /tmp/boot_mmc1.tgz" % (self.maindir, self.boot_tgz))
+            retval = self.process_boottgz("/tmp/boot_mmc1.tgz")
+
+        return retval
+
+    def copy_jffs2(self):
+
+        if path_exists("/mnt/rwfs"):
+            run_cmd("cp -r /mnt/rwfs /tmp/")
+
+    def remove_jffs2(self):
+
+        if path_exists("/tmp/rwfs"):
+            run_cmd("rm -rf  /tmp/rwfs")
+
+    def do_maintenance(self):
+        retval = False
+        remote = False
+
+        if self.is_partition_required():
+            self.partition_mmc()
+            remote = True
+            # We can reboot here if required
+
+        # Mount both partitions
+        self.mount_p2p3()
+        self.copy_jffs2()
+        ret = self.process_cmdline()
+        if ret is True:
+            self.unmount_p2p3()
+            return
+        if not self.is_mmc_bootable():
+            retval = self.do_usb_recovery()
+            remote = not retval
+        ret, scratchreg = self.get_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG)
+        if not ret:
+            return retval
+        if self.is_upgrade_required():
+            retval = self.do_upgrade()
+        if self.is_local_recovery(scratchreg):
+            retval = self.do_local_recovery()
+            if not retval:
+                remote = True
+
+        if self.is_remote_recovery(scratchreg) or remote:
+            retval = self.do_remote_recovery()
+        self.remove_jffs2()
+        self.unmount_p2p3()
+        if self.reboot and retval:
+            run_cmd("reboot")
+
+    def finish_upgrade(self):
+        # Always rename the file not using rename from json for now
+        if path_exists(self.path):
+            backup = self.path + '.bak'
+            if path_exists(backup):
+                os.unlink(backup)
+            os.rename(self.path, backup)
+
+
+# SD = 0, EMMC = 1
+
+args = parser.parse_args()
+if args.dbg:
+    DEBUG = True
+else:
+    DEBUG = False
+
+if len(sys.argv) == 1:
+    args = parser.parse_args(['-h', ])
+else:
+    args = parser.parse_args()
+obj = maint_obj(1, args)
+obj.do_maintenance()

@@ -1,0 +1,281 @@
+#!/usr/bin/python2
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+import argparse
+import os, json
+import sys
+
+desc = '''
+Copyright 2020-2021 Xilinx, Inc.
+All rights reserved.
+
+Xilinx Alveo SmartNIC utility to configure SoC images upgrade
+'''
+
+hlpstr='''
+Example commands
+To configure flash image upgrade
+    upgrade_soc --update-xspi=/tmp/boot_xspi.img
+To configure rootfs image upgrade
+    upgrade_soc --update-rootfs=/tmp/rootfs.tgz
+To configure both flash and rootfs image upgrade
+    upgrade_soc --update-xspi=/tmp/boot_xspi.img --update-rootfs=/tmp/rootfs.tgz
+To configure SoC upgrade
+    upgrade_soc --image-path=/tmp/boot_mmc1.tgz
+To disable an already configured upgrade:
+    upgrade_soc --disable-update
+'''
+
+parser = argparse.ArgumentParser(description=desc, epilog=hlpstr, formatter_class=argparse.RawDescriptionHelpFormatter, usage="")
+
+parser.add_argument('--update-xspi', metavar = "",help=("    Configure flash image upgrade on next boot with the image path provided"), dest='xspipath', type = str, nargs=1, default=None)
+parser.add_argument('--update-rootfs', metavar = "      Configure rootfs image upgrade on next boot with Rootfs tar.gz file path provided", dest='rfspath', type = str, nargs=1, default=None)
+parser.add_argument('--image-path', metavar = "      Configure full upgrade on next boot with boot_mmc1.tgz file path provided", dest='boot_tgz_path', type = str, nargs=1, default=None)
+
+#--update-dtb= fsl.dtb
+parser.add_argument('--update-dtb', metavar=" Kernel DTB file Path", dest='dtbpath', type = str, nargs=1, default=None, help=argparse.SUPPRESS)
+#--update-u-boot-script=custom.scr
+parser.add_argument('--update-u-boot-script', metavar = " U-boot script Path", dest='uscript', type = str, nargs=1, default=None, help=argparse.SUPPRESS)
+parser.add_argument('--disable-reboot', metavar = " Do not reboot after update", dest='reboot', type = bool, const=False,nargs='?', default=True, help=argparse.SUPPRESS)
+parser.add_argument('--disable-update', metavar = "", help = " Disables an already configured upgrade", dest = 'disupdate', type = bool, const=True, nargs='?', default=False)
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+def mount_devpart(devpart, mountpoint):
+    ret = True
+
+    if path_exists(devpart):
+        if not path_exists(mountpoint):
+            os.mkdir(mountpoint)
+        if path_exists(mountpoint):
+            umount_devpart(mountpoint)
+            r, str = run_cmd("mount %s %s" % (devpart, mountpoint))
+            if r != 0:
+                print(str)
+                ret = False
+            print("Mount device %s to folder %s, status: %d" % (devpart, mountpoint, r))
+    else:
+        ret = False
+
+    return ret
+
+def umount_devpart(mountpoint):
+    retval, str = run_cmd("umount %s" % mountpoint)
+    return retval == 0
+
+def save_config(filename, conf):
+
+    ret = True
+    
+    with open(filename,"w") as f:
+        try:
+            f.write(json.dumps(conf, indent=4))
+        except:
+            ret = False
+    return ret
+
+def read_config(filename):
+
+    _conf = None
+
+    if not path_exists(filename):
+        return _conf
+    with open(filename, "r") as f:
+        try:
+            _conf = json.load(f)
+        except:
+            _conf = None
+
+    return _conf
+
+def run_cmd(cmd):
+    cmd = "%s 1> /tmp/out 2> /tmp/out1" % cmd
+    ret = os.system(cmd)
+    if ret != 0:
+        file = "/tmp/out1"
+    else:
+        file = "/tmp/out"
+    f = open(file, "r")
+    ls = f.readlines()
+    str = ""
+    for l in ls:
+        str = str + l
+
+    return ret, str
+
+def validate_rootfs(rfspath):
+
+    errmsg = ""
+    if not path_exists(rfspath):
+        errmsg = "Error: %s File not found" % rfspath
+        return False, errmsg
+    cmd = "gzip -d -c %s | tar -tv ./proc/" % rfspath
+    ret, str = run_cmd(cmd)
+    if ("/proc" not in str) or ret != 0:
+        errmsg = "Error: Seems invalid root filesystem passed %s" % rfspath
+        return False, str + "\n" + errmsg
+
+    return True, ""
+
+def validate_bootfs(rfspath):
+
+    errmsg = ""
+    if not path_exists(rfspath):
+        errmsg = "Error: %s File not found" % self.rfspath[0]
+        return False, errmsg
+    cmd = "gzip -d -c %s | tar -tv boot/" % rfspath
+    ret, str = run_cmd(cmd)
+    if "boot.scr" not in str:
+        errmsg = "Error: Seems invalid file passed %s" % rfspath
+        return False, str + "\n" + errmsg
+    return True, ""
+
+
+class setup_update:
+    def __init__(self, args):
+        """
+        status, disupdate, reboot, dtbpath, rfspath, xspipath, uscript
+        """
+        self.args = args
+        self.disupdate = args.disupdate
+        self.reboot = args.reboot
+        self.dtbpath = args.dtbpath
+        self.rfspath = args.rfspath
+        self.xspipath = args.xspipath
+        self.uscript = args.uscript
+        self.maint = "/mnt/maint"
+        self.boot_tgz_path = args.boot_tgz_path
+        self.mfile = {}
+
+    def del_mainfile(self):
+
+        file = "%s/maintenance/maintenance" % self.maint
+        if not path_exists(file):
+            print("File not found %s" % file)
+            return
+        conf = read_config(file)
+        run_cmd("rm -rf %s" % file)
+
+    def update_dtb(self):
+        path = "%s/boot/fsl-lx2162a-u26z.dtb" % self.maint
+        ret,str = run_cmd("cp -rf %s %s" % (self.dtbpath[0], path))
+
+        if ret != 0:
+            print(str)
+            
+        return ret == 0
+
+    def update_uscript(self):
+        path = "%s/boot/custom.scr" % self.maint
+        ret,str = run_cmd("cp -rf %s %s" % (self.uscript[0], path))
+
+        if ret != 0:
+            print(str)
+        ret,str = run_cmd("ln -s -f custom.scr %s/boot/boot.scr" % (self.maint))
+
+        return ret == 0
+
+    def set_xspi(self):
+
+        if not path_exists(self.xspipath[0]):
+            print("Error: %s File not found" % self.xspipath[0])
+            return False
+        self.mfile["install_xspi"] = True
+        self.mfile["xspi_img"] = "data/boot_xspi_1.img"
+        ret, str = run_cmd("cp -rf %s %s/%s" % (self.xspipath[0], self.maint, self.mfile["xspi_img"]))
+
+        if ret != 0:
+            print(str)
+        return ret == 0
+
+    def set_boottgz(self):
+        ret, errmsg = validate_bootfs(self.boot_tgz_path[0])
+        if not ret:
+            print(errmsg)
+            return False
+        self.mfile["install_boot_tgz"] = True
+        self.mfile["boot_tgz"] = "boot_mmc1.tgz"
+        ret, str = run_cmd("cp -rf %s %s/%s" % (self.boot_tgz_path[0], self.maint, self.mfile["boot_tgz"]))
+
+        if ret != 0:
+            print(str)
+        return ret == 0
+
+    def set_rfs(self):
+        ret, errmsg = validate_rootfs(self.rfspath[0])
+        if not ret:
+            print(errmsg)
+            return False
+        self.mfile["install_rootfs"] = True
+        self.mfile["rootfs_tgz"] = "data/rootfs_1.tgz"
+        ret,str = run_cmd("cp -rf %s %s/%s" % (self.rfspath[0], self.maint, self.mfile["rootfs_tgz"]))
+
+        if ret != 0:
+            print(str)
+        return ret == 0
+
+    def do_setup(self):
+
+        updatecfg = False
+        error = False
+        # mount 2nd partition
+        ret = mount_devpart("/dev/mmcblk1p2", self.maint)
+
+        if self.disupdate is True:
+            self.del_mainfile()
+
+        if ret is False:
+            print("Error: Unable to mount mmc. Is mmc partitioned?")
+            return
+        if self.dtbpath is not None:
+            if path_exists(self.dtbpath[0]):
+                self.update_dtb()
+
+        if (self.rfspath is not None):
+            ret = self.set_rfs()
+            if ret:
+                updatecfg = True
+            else:
+                error = True
+        if (self.xspipath is not None) and (error is False):
+            ret = self.set_xspi()
+            if ret:
+                updatecfg = True
+            else:
+                error = True
+        if (self.boot_tgz_path is not None) and (error is False):
+            ret = self.set_boottgz()
+            if ret:
+                updatecfg = True
+            else:
+                error = True
+
+        if self.uscript is not None:
+            if path_exists(self.uscript[0]):
+                self.update_uscript()
+        self.mfile["reboot"] = self.reboot
+        if updatecfg and (error is False):
+            print("Update enabled")
+            save_config("%s/maintenance/maintenance" % self.maint, self.mfile)
+            print("Reboot SoC to start upgrade")
+        
+        umount_devpart(self.maint)
+
+
+args = parser.parse_args()
+if len(sys.argv) == 1:
+    args = parser.parse_args(['-h', ])
+else:
+    args = parser.parse_args()
+setup = setup_update(args)
+setup.do_setup()

@@ -1,0 +1,105 @@
+#! /bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+set -e -x
+
+# updated for lx2160a
+
+#pass path to the root. Don't let it run without one as it will break your system
+if [ "" = "$1" ] ; then 
+  echo "You need to specify a path to the target rootfs"
+else
+  if [ -e "$1" ] ; then
+    ROOTFS="$1"
+  else 
+    echo "Root of target rootfs: $ROOTFS not found"
+    exit 1
+  fi
+fi
+
+if [ "/" = "${ROOTFS}" ] ; then echo "Refusing to change your build system's files"; exit 1; fi
+
+#Do things that need to be done at 1st stage so that rootfs will boot.
+
+#Set securetty
+#Add modules - e.g. to support USB serial/ethernet console
+
+# specify config to use
+if [ "" = "$2" ] ; then 
+  CONFIG="files"
+fi
+if [ -d "$2" ] ; then
+  CONFIG="$2"
+else
+  echo "Config dir $CONFIG not found"
+fi
+
+echo `pwd`
+#read in settings
+if [ -f config-lx2160a ] ; then
+  . ./config-lx2160a
+fi
+
+	    #add serial ports to securetty - now idempotent
+	    DONE=`grep $CONSOLE $ROOTFS/etc/securetty || true`
+	    if [ -z "$DONE" ]; then
+	      echo "$CONSOLE" >> $ROOTFS/etc/securetty
+	    fi
+#	    #put our standard fstab and network and modules files in
+#	    if [ ! -d $ROOTFS/etc/network ]; then mkdir -p $ROOTFS/etc/network; fi
+#	    if [ ! -d $ROOTFS/etc/init.d ]; then mkdir -p $ROOTFS/etc/init.d; fi
+#	    if [ ! -d $ROOTFS/etc/dhcp3 ]; then mkdir -p $ROOTFS/etc/dhcp3; fi
+#	    if [ ! -d $ROOTFS/lib/firmware ]; then mkdir -p $ROOTFS/lib/firmware; fi
+#	    if [ ! -d $ROOTFS/etc/apt/apt.conf.d/ ]; then mkdir -p $ROOTFS/etc/apt/apt.conf.d/; fi
+	    if [ -d $CONFIG ]; then cp -r -v $CONFIG/* $ROOTFS; fi;
+#	    if [ -f $CONFIG/fstab ]; then
+#	    cp -v $CONFIG/fstab $ROOTFS/etc/fstab
+#	    fi
+#	    if [ -f $CONFIG/interfaces ]; then
+#	    cp -v $CONFIG/interfaces $ROOTFS/etc/network/interfaces
+#	    fi
+#	    if [ -f $CONFIG/modules ]; then
+#	    cp -v $CONFIG/modules $ROOTFS/etc/modules
+#	    fi
+#	    if [ -f $CONFIG/dhclient.conf ]; then
+#	    cp -v $CONFIG/dhclient.conf $ROOTFS/etc/dhcp3/
+#	    fi
+#	    cp -v $CONFIG/urandom $ROOTFS/etc/init.d/
+#	    cp -v $CONFIG/inittab $ROOTFS/etc/
+#	    if [ -f $CONFIG/10disablerecommends ]; then
+#	    cp -v $CONFIG/10disablerecommends $ROOTFS/etc/apt/apt.conf.d/
+#	    fi
+#	    if [ -f $CONFIG/firmware/libertas_cs.fw ]; then cp -v $CONFIG/firmware/libertas_cs.fw $ROOTFS/lib/firmware/; fi
+#	    if [ -f $CONFIG/firmware/libertas_cs_helper.fw ]; then cp -v $CONFIG/firmware/libertas_cs_helper.fw $ROOTFS/lib/firmware; fi
+#	    # making devices so far missing between old and new multistrap versions preventing
+#	    # chroot from running into newly untarred rootfs
+	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v std )
+#	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v fd )
+	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v ptmx )
+	    # added NCB
+	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v consoleonly )
+#	    # creating devices
+#	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v fb )
+	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v ttyS1 ttyS2)
+#	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v sd )
+#	    (cd $ROOTFS/dev; /sbin/MAKEDEV -v mtd )
+#	    #mutter - it makes mtd butnot mtdblock - patch MAKEDEV?
+#	    (cd $ROOT/FSdev; /sbin/MAKEDEV -v mtdblock{0..7})
+#	    (cd $ROOTFS/dev; mkdir -p mtdblock; for DEVICE in 0 1 2 3 4 5 6 7; do mknod mtdblock/$DEVICE b 31 $DEVICE; done)
+#	    # tidy up after old multistrap code
+
+## stuff that can be left to 2nd stage:
+#	    (cd $ROOTFS/dev; ln -sf urandom random)
+#	    #use bash, not dash - saves 10 seconds 
+#	    # ... but we don't have dash ...
+#	    #(cd $ROOTFS/bin; ln -sf dash sh)
+	    #set hostname
+	    echo lx2160a > $ROOTFS/etc/hostname
+	    #be nice to put these in the right places in files (perl -pi?)
+	    echo "127.0.0.1       localhost.localdomain   localhost" > ${ROOTFS}/etc/hosts
+	    echo "127.0.1.1       lx2160a   lx2160a" >> ${ROOTFS}/etc/hosts
+	    cp configscript.sh $ROOTFS

@@ -1,0 +1,11 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+kernel/drivers/net/mdio.ko
+updates/virtual_bus.ko
+updates/sfc.ko
+updates/sfc_driverlink.ko
+updates/sfc_ef100.ko

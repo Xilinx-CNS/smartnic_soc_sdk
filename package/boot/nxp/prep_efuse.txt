@@ -1,0 +1,36 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo efuse preparing
+
+i2c_test_addr=0xb0000000
+#soc type to NXP
+i2c mw 0x48 0x66 0x1
+#soc device ID to 0x12345678
+i2c mw 0x48 0x67 0x78
+i2c mw 0x48 0x68 0x56
+i2c mw 0x48 0x69 0x34
+i2c mw 0x48 0x6A 0x12
+#eFuse soc state to uboot
+i2c mw 0x48 0x71 0x1
+#eFuse timeout to 0x10
+i2c mw 0x48 0x77 0x3B
+#writing crc32 0 FIX SuC expecting 0 for now
+i2c mw 0x48 0x72 0x44
+i2c mw 0x48 0x73 0x42
+i2c mw 0x48 0x74 0xe6
+i2c mw 0x48 0x75 0x31
+#eFuse start prepare
+i2c mw 0x48 0x76 0x65
+#read back prepare status it should be 0x1 if prepared successfully
+i2c read 0x48 0x70 1 $i2c_test_addr
+setexpr.b i2c_var *$i2c_test_addr
+if test $i2c_var != 1; then
+    echo efuse preparation failed $i2c_var
+else
+    echo efuse prepared successfully
+fi
+

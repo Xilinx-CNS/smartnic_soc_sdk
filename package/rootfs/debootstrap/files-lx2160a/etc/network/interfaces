@@ -1,0 +1,14 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+auto lo
+allow-hotplug eth1 eth2 enp1s0 enP1p1s0f0np0 enP1p1s0f1np1
+iface lo inet loopback
+iface eth1 inet dhcp
+iface eth2 inet dhcp
+iface enp1s0 inet dhcp
+iface enP1p1s0f0np0 inet dhcp
+iface enP1p1s0f1np1 inet dhcp

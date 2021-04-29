@@ -1,0 +1,14 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+source package/u-boot/Config.in
+source package/buildroot/Config.in
+source package/initramfs/Config.in
+source package/kernel/Config.in
+source package/fit/Config.in
+source package/boot/Config.in
+source package/rootfs/Config.in
+source package/firmware/Config.in

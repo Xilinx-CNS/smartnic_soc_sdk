@@ -1,0 +1,560 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+@@ -0,0 +1,388 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * (C) Copyright 2020 Xilinx INC.
++ */
++
++#include <common.h>
++#include <bootretry.h>
++#include <cli.h>
++#include <command.h>
++#include <console.h>
++#include <dm.h>
++#include <edid.h>
++#include <errno.h>
++#include <i2c.h>
++#include <malloc.h>
++#include <asm/byteorder.h>
++#include <linux/compiler.h>
++
++
++#define i2cdev 0
++#define SUC_I2C_ADDR 0x48
++
++#define SUC_MD_ADDR_LEN 1
++
++#define SUC_DEVICE_ID 0x53
++#define SUC_DEVICE_VERSION 1
++
++#define SOC_STATE_UBOOT 1
++#define SOC_STATE_OS_START 2
++#define SOC_STATE_OS_RUNNING 3
++#define SOC_STATE_MAINT_OS_RUNNING 4
++
++#define SOC_TYPE_NXP 0x1
++
++#define AUX_POWER_FLAG 0x1
++#define OS_RECOVERY_FLAG 0x2
++#define WD_FIRED_FLAG 0x10
++//POWER THROTTLE FLAGS(BIT2(SENSOR WARNING), BIT3 (SENSOR CRITICAL), BIT5(POWER THROTTLE))
++#define POWER_THROTTLE_FLAGS 0x26
++
++#define NEEDS_RECOVERY 0x80
++//#OFFSETS
++#define SUC_DEVID_OFFSET 0x0
++#define SUC_DEVVERSION_OFFSET 0x1
++#define SUC_STATUS_FLAGS_OFFSET 0x2
++#define SUC_RESET_COUNT_OFFSET 0x3
++#define SUC_WATCHDOG_KICK_OFFSET 0x5
++#define SUC_WATCHDOG_PERIOD_OFFSET 0x6
++#define SUC_SOC_STATE_OFFSET 0x7
++#define SUC_SW_RESET_COUNT_OFFSET 0x8
++#define SUC_SCRATCHPAD_OFFSET 0x9
++#define SUC_EEPROM_CTRL_OFFSET 0xA
++#define SUC_CTRL_OFFSET 0xB
++#define SUC_MAC_BASE_OFFSET 0x60
++#define SUC_SOC_TYPE_OFFSET 0x66
++#define SUC_SOC_DEVID_OFFSET 0x67
++#define SUC_LAST_REBOOT_LSB_OFFSET 0xC
++
++#ifdef CONFIG_DM_I2C
++static struct udevice *i2c_suc_bus;
++#endif
++
++static int suc_read(uint offset, uint8_t *buffer, int len)
++{
++#ifdef CONFIG_DM_I2C
++    struct udevice *dev;
++#endif
++
++    int ret;
++
++#ifdef CONFIG_DM_I2C
++    ret = i2c_get_chip(i2c_suc_bus, SUC_I2C_ADDR, 1, &dev);
++    if (ret) {
++        printf("Error reading I2C device \n");
++        return ret;
++    }
++
++    ret = dm_i2c_read(dev, offset, buffer, len);
++#else
++    ret = i2c_read(SUC_I2C_ADDR, offset, SUC_MD_ADDR_LEN, buffer, len);
++#endif
++    if (ret) {
++        printf("Error reading I2C device \n");
++        return ret;
++    }
++    return 0;
++}
++
++static int suc_write(uint offset, uint8_t *buffer, int len)
++{
++    int ret, i=0;
++#ifdef CONFIG_DM_I2C
++    struct dm_i2c_chip *i2c_chip;
++    struct udevice *dev;
++#endif
++
++#ifdef CONFIG_DM_I2C
++    ret = i2c_get_chip(i2c_suc_bus, SUC_I2C_ADDR, 1, &dev);
++    if (ret) {
++        printf("Error reading I2C device \n");
++        return ret;
++    }
++
++    i2c_chip = dev_get_parent_platdata(dev);
++
++    if (!i2c_chip) {
++        printf("error in write to I2C device\n");
++        return -ENODEV;
++    }
++
++    i2c_chip->flags &= ~DM_I2C_CHIP_WR_ADDRESS;
++    while(len--) {
++        ret = dm_i2c_write(dev, offset+i, &buffer[i], 1);
++#else
++        ret = i2c_write(chip, offset+i, SUC_MD_ADDR_LEN, &buffer[i], 1);
++#endif
++        if (ret) {
++            printf("error in write to I2C device\n");
++            return ret;
++        }
++		i++;
++    }
++    return 0;
++}
++
++static int do_suc_check_maint(cmd_tbl_t *cmdtp, int flag, int argc,
++                char * const argv[])
++{
++    int ret;
++    int counter = 0, timer = 0;
++    uint8_t value, scratchpad;
++    uint8_t needs_maint = 0;
++    uint32_t soc_device_id = 0x12345678;
++
++    if ((argc != 1) && (argc != 3))
++        return cmd_usage(cmdtp);
++
++    if (argc == 3) {
++        counter = simple_strtoul(argv[1], NULL, 10);
++        timer = simple_strtoul(argv[2], NULL, 10);
++    }
++
++#ifdef CONFIG_DM_I2C
++    ret = uclass_get_device_by_seq(UCLASS_I2C, i2cdev, &i2c_suc_bus);
++#else
++    ret = i2c_set_bus_num(i2cdev);
++#endif
++    if (ret) {
++        printf("Failure changing bus number (%d)\n", ret);
++        return -ENODEV;
++    }
++
++    /*Verify device ID and Version*/
++    ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure reading suc device ID (%d)\n", ret);
++        return ret;
++    }
++
++    if(value != SUC_DEVICE_ID) {
++        printf("suc device ID Mismatch(%d:%d)\n", value, SUC_DEVICE_ID);
++        return -ENODEV;
++    }
++
++    ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure reading suc Version (%d)\n", ret);
++        return ret;
++    }
++
++    if(value != SUC_DEVICE_VERSION) {
++        printf("suc device version Mismatch(%d:%d)\n", value, SUC_DEVICE_VERSION);
++        return -ENODEV;
++    }
++
++    /*set soc type to NXP*/
++    value = SOC_TYPE_NXP;
++    ret = suc_write(SUC_SOC_TYPE_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure writing to SuC (%d)\n", ret);
++        return ret;
++    }
++
++    /*TODO update SOC device ID*/
++    ret = suc_write(SUC_SOC_DEVID_OFFSET,
++                    (unsigned char *)&soc_device_id, 4);
++    if (ret) {
++        printf("Failure writing to SuC (%d)\n", ret);
++        return ret;
++    }
++
++    /*set soc state to U-BOOT*/
++    value = SOC_STATE_UBOOT;
++    ret = suc_write(SUC_SOC_STATE_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure writing to SuC (%d)\n", ret);
++        return ret;
++    }
++
++    /*Disable watchdog*/
++    value = 0;
++    ret = suc_write(SUC_CTRL_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure writing to SuC (%d)\n", ret);
++        return ret;
++    }
++
++    /*Read the status flags*/
++    ret = suc_read(SUC_STATUS_FLAGS_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure reading suc device (%d)\n", ret);
++        return ret;
++    }
++
++    if (value & AUX_POWER_FLAG) {
++        printf("AUX power available\n");
++        /*Set number of cores to 16*/
++    } else {
++        printf("AUX power not available\n");
++        /*Set number of cores to 8*/
++    }
++
++    if (value & POWER_THROTTLE_FLAGS) {
++        //printf("Power throttle required\n");
++    } else {
++        //printf("Not power requirements\n");
++    }
++    if (value & OS_RECOVERY_FLAG)
++        env_set("maintenance", "yes");
++
++    /*Read the previous soc state*/
++    ret = suc_read(SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
++    if (ret) {
++        printf("Failure reading scratchpad register (%d)\n", ret);
++        return ret;
++    }
++
++    if (value & WD_FIRED_FLAG) {
++
++        if ((scratchpad & 0x07) == SOC_STATE_OS_START) {
++            needs_maint = NEEDS_RECOVERY;
++        } else if ((scratchpad & 0x07) == SOC_STATE_OS_RUNNING ||
++                   (scratchpad & 0x07) == SOC_STATE_MAINT_OS_RUNNING) {
++            /*Read the sw reset conut soc state*/
++            ret = suc_read(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++            if (ret) {
++                printf("Failure reading suc (%d)\n", ret);
++                return ret;
++            }
++            value += 1;
++            ret = suc_write(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++            if (ret) {
++                printf("Failure writing to SuC (%d)\n", ret);
++                return ret;
++            }
++            if (counter && value > counter && !timer) {
++                needs_maint = NEEDS_RECOVERY;
++            }
++        }
++    } else {
++       ret = suc_write(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++       if (ret) {
++           printf("Failure writing to SuC (%d)\n", ret);
++           return ret;
++       }
++   }
++    /*Clear Prev state bits in scratchpad*/
++    scratchpad = scratchpad & ~0x07;
++
++    /*set the prev state to U-boot and update maintenance flag*/
++    scratchpad = scratchpad | SOC_STATE_UBOOT | needs_maint;
++    ret = suc_write(SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
++    if (ret) {
++        printf("Failure witing to SuC (%d)\n", ret);
++        return ret;
++    }
++
++    if(needs_maint) {
++        printf("Maintenance needed\n");
++        env_set("maintenance", "yes");
++    }
++
++    return 0;
++}
++
++static int do_suc_get_ethaddr(cmd_tbl_t *cmdtp, int flag, int argc,
++                char * const argv[])
++{
++    int ret, i;
++    uint8_t value;
++    uint8_t macaddr[6];
++    char mac[24];
++
++#ifdef CONFIG_DM_I2C
++    ret = uclass_get_device_by_seq(UCLASS_I2C, i2cdev, &i2c_suc_bus);
++#else
++    ret = i2c_set_bus_num(i2cdev);
++#endif
++    if (ret) {
++        printf("Failure changing bus number (%d)\n", ret);
++        return -ENODEV;
++    }
++
++    /*Verify device ID and Version*/
++    ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure reading suc device ID (%d)\n", ret);
++        return ret;
++    }
++    if(value != SUC_DEVICE_ID) {
++        printf("suc device ID Mismatch(%d:%d)\n", value, SUC_DEVICE_ID);
++        return ret;
++    }
++
++    ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++    if (ret) {
++        printf("Failure reading suc Version (%d)\n", ret);
++        return ret;
++    }
++
++    if(value != SUC_DEVICE_VERSION) {
++        printf("suc device version Mismatch(%d:%d)\n", value, SUC_DEVICE_VERSION);
++        return ret;
++    }
++
++    for (i = 0; i < 6; i++) {
++        ret = suc_read(SUC_MAC_BASE_OFFSET + i, &macaddr[i], 1);
++            if (ret) {
++                printf("Failure reading suc Version (%d)\n", ret);
++                return ret;
++            }
++    }
++
++    sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x\n",
++            macaddr[0],macaddr[1],macaddr[2],macaddr[3],macaddr[4],macaddr[5]);
++
++    printf("MAC addr retrieved from SuC is %s\n", mac);
++
++    env_set("suc_mac", mac);
++
++    return 0;
++}
++
++static cmd_tbl_t cmd_suc_sub[] = {
++    U_BOOT_CMD_MKENT(check_maint, 0, 1, do_suc_check_maint, "", ""),
++    U_BOOT_CMD_MKENT(get_ethaddr, 0, 1, do_suc_get_ethaddr, "", ""),
++};
++
++/**
++ * do_suc() - 	Handle the "suc" command-line command
++ * @cmdtp:	Command data struct pointer
++ * @flag:	Command flag
++ * @argc:	Command-line argument count
++ * @argv:	Array of command-line arguments
++ *
++ * Returns zero on success, CMD_RET_USAGE in case of misuse and negative
++ * on error.
++ */
++static int do_suc(cmd_tbl_t * cmdtp, int flag, int argc, char * const argv[])
++{
++    cmd_tbl_t *c;
++
++    if (argc < 2)
++        return CMD_RET_USAGE;
++
++    /* Strip off leading 'suc' command argument */
++    argc--;
++    argv++;
++
++    c = find_cmd_tbl(argv[0], &cmd_suc_sub[0], ARRAY_SIZE(cmd_suc_sub));
++
++    if (!c)
++        return CMD_RET_USAGE;
++
++    return c->cmd(cmdtp, flag, argc, argv);
++}
++/***************************************************/
++#ifdef CONFIG_SYS_LONGHELP
++static char suc_help_text[] =
++	"check_maint [MAX_COUNTER] [MAX_TIMER] check if recovery is required\n"
++    	"suc get_ethaddr";
++#endif
++U_BOOT_CMD(
++	suc, 4, 1, do_suc,
++	"suc management commands",
++	suc_help_text
++);
++
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/Makefile
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/cmd/Makefile
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/Makefile
+@@ -183,6 +183,7 @@ endif # !CONFIG_SPL_BUILD
+ 
+ # core command
+ obj-y += nvedit.o
++obj-y += suc.o
+ 
+ obj-$(CONFIG_TI_COMMON_CMD_OPTIONS) += ti/
+ 
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/eth_lx2162au26z.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/board/freescale/lx2160a/eth_lx2162au26z.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/eth_lx2162au26z.c
+@@ -17,9 +17,135 @@
+ #include <asm/arch/fsl_serdes.h>
+ #include <fsl-mc/fsl_mc.h>
+ #include <fsl-mc/ldpaa_wriop.h>
++#include <i2c.h>
++#include <dm.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#define i2cdev 0
++#define SUC_I2C_ADDR 0x48
++
++#define SUC_MD_ADDR_LEN 1
++
++#define SUC_DEVICE_ID 0x53
++#define SUC_DEVICE_VERSION 1
++
++//#OFFSETS
++#define SUC_DEVID_OFFSET 0x0
++#define SUC_DEVVERSION_OFFSET 0x1
++#define SUC_MAC_BASE_OFFSET 0x60
++
++#ifdef CONFIG_DM_I2C
++static struct udevice *i2c_suc_bus;
++#endif
++
++static int suc_read(uint offset, uint8_t *buffer, int len)
++{
++#ifdef CONFIG_DM_I2C
++	struct udevice *dev;
++#endif
++
++	int ret;
++
++#ifdef CONFIG_DM_I2C
++	ret = i2c_get_chip(i2c_suc_bus, SUC_I2C_ADDR, 1, &dev);
++	if (ret) {
++		printf("Error reading I2C device \n");
++		return 0;
++	}
++
++	ret = dm_i2c_read(dev, offset, buffer, len);
++#else
++	ret = i2c_read(SUC_I2C_ADDR, offset, SUC_MD_ADDR_LEN, buffer, len);
++#endif
++	if (ret) {
++		printf("Error reading I2C device \n");
++		return ret;
++	}
++	return 0;
++}
++
++int read_mac_from_eeprom_and_assign_to_eth_iface(void)
++{
++	int ret, i;
++	uint8_t value;
++	uint8_t macaddr[6];
++	char mac[24];
++	char ethaddr[20];
++	struct eth_device *dev;
++
++#ifdef CONFIG_DM_I2C
++	ret = uclass_get_device_by_seq(UCLASS_I2C, i2cdev, &i2c_suc_bus);
++#else
++	ret = i2c_set_bus_num(i2cdev);
++#endif
++	if (ret) {
++		printf("Failure changing bus number (%d)\n", ret);
++		return -ENODEV;
++	}
++
++	/*Verify device ID and Version*/
++	ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++	if (ret) {
++		printf("Failure reading suc device ID (%d)\n", ret);
++		return ret;
++	}
++	if(value != SUC_DEVICE_ID) {
++		printf("suc device ID Mismatch(%d:%d)\n", value, SUC_DEVICE_ID);
++		return ret;
++	}
++
++	ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++	if (ret) {
++		printf("Failure reading suc Version (%d)\n", ret);
++		return ret;
++	}
++
++	if(value != SUC_DEVICE_VERSION) {
++		printf("suc device version Mismatch(%d:%d)\n", value, SUC_DEVICE_VERSION);
++		return ret;
++	}
++	for (i = 0; i < 6; i++) {
++		ret = suc_read(SUC_MAC_BASE_OFFSET + i, &macaddr[i], 1);
++			if (ret) {
++				printf("Failure reading suc Version (%d)\n", ret);
++				return ret;
++			}
++	}
++
++	sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x",
++			macaddr[0],macaddr[1],macaddr[2],macaddr[3],macaddr[4],macaddr[5]);
++
++	/* Assign MAC address read from SUC to 1G iface */
++	dev = eth_get_dev_by_name("DPMAC17@rgmii-id");
++	if (dev) {
++		if (dev->index != 0)
++			sprintf(ethaddr, "eth%daddr", dev->index);
++		else
++			strcpy(ethaddr, "ethaddr");
++
++		ret = env_set(ethaddr, mac);
++	}
++
++	/* TODO Right now assiging ilocally administered MAC address to 25G iface
++	 * Need to change, once the mac address is available in EEPROM for 25G
++	 */
++	dev = eth_get_dev_by_name("DPMAC3@25g-aui");
++	if (dev) {
++		if (dev->index != 0)
++			sprintf(ethaddr, "eth%daddr", dev->index);
++		else
++			strcpy(ethaddr, "ethaddr");
++
++		macaddr[5] = macaddr[5] + 1;
++		sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x",
++				macaddr[0],macaddr[1],macaddr[2],macaddr[3],macaddr[4],macaddr[5]);
++		ret = env_set(ethaddr, mac);
++	}
++
++	return 0;
++}
++
+ int board_eth_init(bd_t *bis)
+ {
+ #if defined(CONFIG_FSL_MC_ENET)
+@@ -45,6 +171,8 @@ int board_eth_init(bd_t *bis)
+ 	dev->write(dev, RGMII_PHY_ADDR1, MDIO_DEVAD_NONE, 0x1f, 0);
+ 
+ 	cpu_eth_init(bis);
++
++	read_mac_from_eeprom_and_assign_to_eth_iface();
+ #endif /* CONFIG_FSL_MC_ENET */
+ 
+ 	return pci_eth_init(bis);

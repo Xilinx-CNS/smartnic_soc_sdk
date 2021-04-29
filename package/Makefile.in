@@ -1,0 +1,21 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+include $(PACKAGEDIR)/package.deps
+include $(PACKAGEDIR)/package.mk
+include $(PACKAGEDIR)/sdk_version/sdk_version.mk
+include $(PACKAGEDIR)/buildroot/buildroot.mk
+include $(PACKAGEDIR)/initramfs/initramfs.mk
+include $(PACKAGEDIR)/kernel/kernel.mk
+include $(PACKAGEDIR)/u-boot/u-boot.mk
+include $(PACKAGEDIR)/firmware/firmware.mk
+include $(PACKAGEDIR)/fit/fit.mk
+include $(PACKAGEDIR)/suc_comms/suc_comms.mk
+include $(PACKAGEDIR)/thermalload/thermalload.mk
+include $(PACKAGEDIR)/soc_thermal_test/soc_thermal_test.mk
+include $(PACKAGEDIR)/power_throttle/power_throttle.mk
+include $(PACKAGEDIR)/rootfs/rootfs.mk
+include $(PACKAGEDIR)/boot/boot.mk

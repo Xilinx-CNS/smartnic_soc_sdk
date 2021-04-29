@@ -1,0 +1,436 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+# old file showing example usecase
+
+DEBUG=yes
+
+say()
+{
+	/bin/echo "$1" > /dev/console
+}
+
+debug()
+{
+    if [ ""$DEBUG = "yes" ]; then
+	say "$1"
+    fi
+}
+
+debug "custom script starting"
+
+get_opt()
+{
+  echo "$@" | cut -d "=" -f 2
+}
+
+get_arg()
+{
+  echo "$@" | cut -d "," -f 2
+}
+
+usbnet_down()
+{
+  ifdown usb0
+  sleep 1
+  rmmod g_ether
+}
+
+usbnet_up()
+{
+    modprobe g_ether
+    sleep 1
+    ifup usb0
+    sleep 1
+}
+
+eth0_up()
+{
+    ifup eth0
+}
+
+eth0_down()
+{
+    ifdown eth0
+}
+
+massstore_up()
+{
+    usbnet_down
+    modprobe g_mass_storage file=$1
+}
+
+massstore_down()
+{
+    rmmod g_mass_storage
+}
+
+mount_boot()
+{
+#  umount /mnt/boot 
+  /bin/mount -t yaffs2 /dev/mtdblock0 /mnt/boot
+  return 1
+}
+
+mount_root()
+{
+#  umount /mnt/root
+  if [ -e /dev/ubi0 ] && [ ! -e /dev/ubi0_0 ]; then
+    /usr/sbin/ubimkvol /dev/ubi0 -N rootfs -m
+  fi
+    debug "looking for /dev/ubi0_0"
+  if [ -e /dev/ubi0_0 ]; then
+    debug "mounting /dev/ubi0_0 /mnt/root"
+    /bin/mount -t ubifs /dev/ubi0_0 /mnt/root
+  else
+    debug "mounting /dev/mtdblock1 /mnt/root"
+    mount -t yaffs2 /dev/mtdblock1 /mnt/root
+  fi
+  return 1
+}
+
+mount_sd()
+{
+MNT=""
+debug "looking for /dev/sd$1$2"
+if [ -e /dev/sd$1$2 ]; then
+  if [ ! -e /mnt/sd$1$2 ]; then
+    mkdir /mnt/sd$1$2
+  fi
+ mount -t auto /dev/sd$1$2 /mnt/sd$1$2
+ MNT="/mnt/sd$1$2"
+ return 1
+fi
+return 0
+}
+
+mount_mmc()
+{
+    MNT=""
+    debug "looking for /dev/mmcblk$1$2"
+    if [ -e /dev/mmcblk$1p$2 ]; then
+	if [ ! -e /mnt/mmc$1$2 ]; then
+	mkdir /mnt/mmc$1$2
+	fi
+	mount -t auto /dev/mmcblk$1p$2 /mnt/mmc$1$2
+	MNT="/mnt/mmc$1$2"
+	return 1
+    fi
+    return 0
+}
+
+do_installer()
+{
+  for i in installer.d/??* ;do
+    [ ! -f "$i" ] && continue
+    case "$i" in
+    *.sh)
+      if [ -x $i ]; then
+        $i
+      fi
+      ;;
+    *.tgz)
+    cd /mnt/root;
+      tar -xvzf $i
+      ;;
+    *.tar)
+    cd /mnt/root;
+      tar -xvf $i
+      ;;
+    *.deb)
+      cp $i /mnt/root/tmp
+      chroot /mnt/root/tmp dpkg -i *.deb
+      ;;
+    *)
+      if [ -x $i ]; then
+        $i
+      fi
+      ;;
+    esac
+done
+}
+
+chainboot()
+{
+    debug "entering chainboot"
+    if [ -e noboot ]; then
+	return 0
+    fi
+
+    if [ -r zImageBoot ]; then
+      if [ ! -r vmlinuz ]; then
+        debug "creating vmlinuz symlink to zImageBoot"
+        ln -s zImageBoot vmlinuz
+      fi
+    fi
+
+    if [ -r vmlinuz ]; then
+	# read in command line if any
+	if [ -r vmlinuz.cmdline ]; then
+	    TEMP=`cat vmlinuz.cmdline`
+	else
+	    TEMP=`cat /proc/cmdline`
+	fi
+	CMDLINE="--command-line=\"$TEMP\""
+  # try and load kernel
+# the line below should be fine but doesn't seem to set the command line correctly"
+#  kexec -l /mnt/boot/vmlinuz "$CMDLINE" || true
+#    /bin/echo "creating chain_load" || true
+	/bin/echo "kexec --atags -a -l vmlinuz "$CMDLINE"" > chain_load
+#    /bin/echo "chmod chain_load" || true
+	/bin/chmod +x chain_load
+#    /bin/echo "executing chain_load" || true
+	./chain_load
+  # then execute it
+#    /bin/echo "running kexec" || true
+	/usr/sbin/kexec -e || true
+    fi
+    debug "exiting chainboot"
+}
+
+chainboot_mmc ()
+{
+	for mtd in 0 1 2 3; do
+		for part in 1 2 3 4; do
+			mount_mmc "$mtd" "$part"
+			if [ -d $MNT/boot ]; then
+				cd $MNT/boot
+				chainboot
+			fi
+		done
+	done
+}
+
+chainboot_sd ()
+{
+	for dev in a b c d; do
+		for part in 1 2 3 4; do
+			mount_sd "$dev" "$part"
+			if [ -d $MNT/boot ]; then
+				cd $MNT/boot
+				chainboot
+			fi
+		done
+	done
+}
+
+chainboot_boot()
+{
+	mount_boot
+	if [ -d /mnt/boot ]; then
+		cd /mnt/boot
+		chainboot
+	else
+	    debug "/mnt/boot does not exist"
+	fi
+	mount_root
+	if [ -d /mnt/root/boot ]; then
+		cd /mnt/root/boot
+		chainboot
+	else
+	    debug "/mnt/root/boot does not exist"
+	fi
+}
+
+BOOTSCRIPT=
+BOOTCMD=
+BOOTARGS=
+
+for i in $(/bin/cat /proc/cmdline); do
+#debug "cmdline option $i"
+  case $i in
+    bootscript\=*)
+      _BOOTSCRIPT=$(get_opt $i)
+      ;;
+    root\=*)
+      _ROOT=$(get_opt $i)
+      ;;
+    init\=*)
+      _INIT=$(get_opt $i)
+      ;;
+    machine_id\=*)
+      _ID=$(get_opt $i)
+      ;;
+  esac
+done
+
+if [ ! -d /mnt/boot ]; then
+    debug "creating /mnt/boot"
+    /bin/mkdir /mnt/boot
+fi
+
+if [ ! -d /mnt/root ]; then
+    debug "creating /mnt/root"
+    /bin/mkdir /mnt/root
+fi
+
+BOOTSCRIPT=`/bin/cat /proc/cmdline | /bin/sed -e 's/^.*bootscript=*//' | /bin/sed -e 's/ .*$//'`
+BOOTCMD=`/bin/echo "$BOOTSCRIPT" | /bin/sed -e 's/\,.*$//'`
+BOOTARGS=`/bin/echo "$BOOTSCRIPT" | /bin/sed -e 's/^.*\,//'`
+
+if [ "$BOOTCMD" = "" ]; then
+    BOOTCMD=$BOOTSCRIPT
+fi
+
+debug "BOOTSCRIPT = $BOOTSCRIPT"
+debug "BOOTCMD = $BOOTCMD"
+debug "BOOTARGS = $BOOTARGS"
+debug "Current PID = $$"
+
+# this is not run successfully by inittab
+/bin/hostname -F /etc/hostname
+
+if [ -x /lib/custom/"$BOOTCMD".sh ]; then
+	debug "running custom script /lib/custom/$BOOTCMD.sh"
+    DUMMY=`/bin/sh /lib/custom/"$BOOTCMD".sh`
+    debug "lib/custom/$BOOTCMD.sh returned * $DUMMY *"
+else
+debug "case based on $BOOTCMD"
+case "$BOOTCMD" in
+    chainboot_nand_delay3)
+		sleep 3
+		mount_boot
+		if [ -d /mnt/boot ]; then
+			cd /mnt/boot
+			chainboot
+		fi
+		mount_root
+		if [ -d /mnt/root/boot ]; then
+			cd /mnt/root/boot
+			chainboot
+		fi
+		;;
+    chainboot_nand)
+		chainboot_boot
+		;;
+    chainboot)
+		debug "chainboot start"
+		# leave time to enumerate usb/mmc/sd bus
+		/bin/sleep 3
+		chainboot_mmc
+		chainboot_sd
+		chainboot_boot
+		debug "chainboot failed"
+		;;
+    mount)
+		mount_boot
+		mount_root
+		debug "boot and root mounted"
+		exit 0
+		;;
+    mstore)
+		# leave time to enumerate usb/mmc/sd bus
+		sleep 3
+		if [ -e /dev/sda ] && [ -e /dev/mmcblk0 ]; then
+			massstore_up "/dev/sda,/dev/mmcblk0"
+		else
+			if [ -e /dev/sda ]; then
+				massstore_up "/dev/sda"
+			else
+				if [ -e /dev/mmcblk0 ]; then
+				massstore_up "/dev/mmcblk0"
+				fi
+			fi
+		fi
+		;;
+    installer)
+		usbnet_up
+		mount_root
+		# leave time to enumerate usb/mmc/sd bus
+		sleep 3
+		mount_mmc 0 1
+		if [ -d /mnt/mmc1/installer.d ]; then
+			cd /mnt/mmc1/installer.d
+			installer
+		fi
+		mount_mmc 0 2
+		if [ -d /mnt/mmc2/installer.d ]; then
+			cd /mnt/mm/installer.d
+			installer
+		fi
+		mount_sd a 1
+		if [ -d /mnt/sda1/installer.d ]; then
+			cd /mnt/sda1/installer.d
+			installer
+		fi
+		mount_sd a 2
+		if [ -d /mnt/sda1/installer.d ]; then
+			cd /mnt/sda2/installer.d
+			installer
+		fi
+		;;
+    ubisetup)
+		if [ ! -e /dev/ubi0_0 ]; then
+			ubimkvol /dev/ubi0 -N rootfs -m
+		fi
+		mount -t ubifs /dev/ubi0_0 /mnt/root
+		;;
+    yaffs2setup)
+		mount -t yaffs2 /dev/mtdblock1 /mnt/root
+		;;
+    chroot)
+		usbnet_up
+		# leave time to enumerate usb/mmc/sd bus
+		sleep 3
+		mount_sd a 1
+		if [ -x /mnt/sda1/$(BOOTARGS) ]; then
+			cd /mnt/sda1
+			chroot $(BOOTARGS)
+		fi
+		mount_sd a 2
+		if [ -x /mnt/sda2/$(BOOTARGS) ]; then
+			cd /mnt/sda2
+			chroot $(BOOTARGS)
+		fi
+		;;
+    autorun)
+		usbnet_up;
+		sleep 3
+		mount_sd a 1
+		if [ -x /mnt/sda1/"$BOOTARGS" ]; then
+			cd /mnt/sda1
+			./"$BOOTARGS"
+		fi
+		mount_sd a 2
+		if [ -x /mnt/sda2/"BOOTARGS" ]; then
+			cd /mnt/sda2
+			./"$BOOTARGS"
+		fi
+		;;
+    httpd)
+		usbnet_up
+		/usr/sbin/lighttpd -f /etc/lighttpd.conf
+		echo "downloading $BOOTARGS"
+		cd /var/www
+		wget http://10.1.1.1/balloon3/"$BOOTARGS".tgz
+		gunzip "$BOOTARGS".tgz
+		tar xf "$BOOTARGS".tar
+		;;
+    script)
+		usbnet_up
+		echo "doing script $BOOTARGS"
+		wget http://10.1.1.1/balloon3/"$BOOTARGS".tgz
+		gunzip "$BOOTARGS".tgz
+		tar xf "$BOOTARGS".tar
+		./autorun.sh
+		;;
+    exit)
+	exit 0
+	;;
+    *)
+		say "ignoring $BOOTSCRIPT"
+		;;
+esac
+
+debug "bringing up usbnet"
+usbnet_up
+fi
+
+debug "exiting S99custom"
+
+exit 0

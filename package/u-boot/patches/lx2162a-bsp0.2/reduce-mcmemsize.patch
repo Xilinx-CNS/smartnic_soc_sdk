@@ -1,0 +1,19 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: include/configs/lx2160a_common.h
+===================================================================
+--- u-boot-lx2162a-bsp0.1-lx2162au26z/include/configs/lx2160a_common.h.orig
++++ u-boot-lx2162a-bsp0.1-lx2162au26z/include/configs/lx2160a_common.h
+@@ -261,7 +261,7 @@ int select_i2c_ch_pca9547_sec(unsigned c
+ 	"kernelhdr_size_sd=0x20\0"              \
+ 	"console=ttyAMA0,38400n8\0"		\
+ 	BOOTENV					\
+-	"mcmemsize=0x70000000\0"		\
++	"mcmemsize=0x10000000\0"		\
+ 	XSPI_MC_INIT_CMD				\
+ 	"scan_dev_for_boot_part="		\
+ 		"part list ${devtype} ${devnum} devplist; "	\

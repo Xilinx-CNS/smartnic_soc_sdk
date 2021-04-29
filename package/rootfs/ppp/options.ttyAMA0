@@ -1,0 +1,12 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+#/etc/options.ttyAMA0
+lock
+115200
+local
+xonxoff
+noauth

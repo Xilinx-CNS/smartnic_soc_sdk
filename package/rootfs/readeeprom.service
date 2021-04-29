@@ -1,0 +1,11 @@
+[Unit]
+Description=Read eeprom contents
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+User=root
+ExecStart=python /sbin/read_eeprom.py
+
+[Install]
+WantedBy=multi-user.target

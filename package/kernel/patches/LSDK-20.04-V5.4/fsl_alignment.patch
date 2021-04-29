@@ -1,0 +1,46 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: linux-LSDK-19.06-V4.19-lx2160ardb/include/linux/fsl_qman.h
+===================================================================
+--- linux-LSDK-19.06-V4.19-lx2160ardb.orig/include/linux/fsl_qman.h
++++ linux-LSDK-19.06-V4.19-lx2160ardb/include/linux/fsl_qman.h
+@@ -411,7 +411,7 @@ struct qm_eqcr_entry {
+ 	u32 orp;	/* 24-bit */
+ 	u32 fqid;	/* 24-bit */
+ 	u32 tag;
+-	struct qm_fd fd;
++	struct qm_fd fd __aligned(8);
+ 	u8 __reserved3[32];
+ } __packed;
+ #define QM_EQCR_VERB_VBIT		0x80
+@@ -466,7 +466,7 @@ struct qm_mr_entry {
+ 			u32 orp:24;
+ 			u32 fqid;	/* 24-bit */
+ 			u32 tag;
+-			struct qm_fd fd;
++			struct qm_fd fd __aligned(8);
+ 		} __packed ern;
+ 		struct {
+ #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+@@ -483,7 +483,7 @@ struct qm_mr_entry {
+ 			u32 __reserved3:24;
+ 			u32 fqid;	/* 24-bit */
+ 			u32 tag;
+-			struct qm_fd fd;
++			struct qm_fd fd __aligned(8);
+ 		} __packed dcern;
+ 		struct {
+ 			u8 fqs;		/* Frame Queue Status */
+@@ -1675,7 +1675,7 @@ struct qm_mcr_ceetm_cq_peek_pop_xsfdrrea
+ 	u8 stat;
+ 	u8 __reserved1[11];
+ 	u16 dctidx;
+-	struct qm_fd fd;
++	struct qm_fd fd __aligned(8);
+ 	u8 __reserved2[32];
+ } __packed;
+ 

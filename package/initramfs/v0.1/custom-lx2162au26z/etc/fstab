@@ -1,0 +1,14 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+# /etc/fstab: static file system information.
+#
+# <file system> <mount pt>     <type>	<options>         <dump> <pass>
+/dev/root       /              ext4	rw,noauto         0      1
+proc		/proc	       proc     defaults	  0	 0
+devpts		/dev/pts       devpts   defaults,gid=5,mode=620	  0	 0
+tmpfs           /tmp           tmpfs    defaults          0      0
+sysfs		/sys	       sysfs    defaults	  0	 0

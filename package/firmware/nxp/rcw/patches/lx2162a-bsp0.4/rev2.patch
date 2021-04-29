@@ -1,0 +1,77 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: rcw/lx2160ardb_rev2/XGGFF_PP_HHHH_RR_19_5_2/rcw_2000_700_2900_19_5_2_sd.rcw
+===================================================================
+--- /dev/null
++++ rcw/lx2160ardb_rev2/XGGFF_PP_HHHH_RR_19_5_2/rcw_2000_700_2900_19_5_2_sd.rcw
+@@ -0,0 +1,66 @@
++/*
++ * SerDes Protocol 1 -  19
++ * SerDes Protocol 2 -  5
++ * SerDes Protocol 3 -  2
++ *
++ * Frequencies:
++ * Core     -- 2000 MHz
++ * Platform -- 700  MHz
++ * DDR      -- 2900 MT/s
++ */
++
++#include <../lx2160asi/lx2160a.rcwi>
++
++SYS_PLL_RAT=14
++MEM_PLL_CFG=3
++MEM_PLL_RAT=29
++MEM2_PLL_CFG=3
++MEM2_PLL_RAT=29
++CGA_PLL1_RAT=20
++CGA_PLL2_RAT=20
++CGB_PLL1_RAT=20
++CGB_PLL2_RAT=9
++HWA_CGA_M1_CLK_SEL=1
++HWA_CGB_M1_CLK_SEL=6
++BOOT_LOC=26
++SYSCLK_FREQ=600
++IIC2_PMUX=6
++IIC3_PMUX=2
++IIC4_PMUX=2
++USB3_CLK_FSEL=39
++SRDS_PLL_PD_PLL5=1
++SRDS_PRTCL_S1=19
++SRDS_PRTCL_S2=5
++SRDS_PRTCL_S3=2
++SRDS_PLL_REF_CLK_SEL_S1=2
++SRDS_DIV_PEX_S1=1
++SRDS_DIV_PEX_S2=1
++SRDS_DIV_PEX_S3=1
++
++/* Errata to write on scratch reg for validation */
++#include <../lx2160asi/scratchrw1.rcw>
++
++/* Copy SPL Uboot to Ocram */
++.pbi
++blockcopy 0x08,0x00100000,0x1800a000,0x00015000
++.end
++
++/* Boot Location Pointer */
++#include <../lx2160asi/bootlocptr_sd.rcw>
++
++/* Errata for SATA controller */
++#include <../lx2160asi/a010554.rcw>
++
++/* common PBI commands */
++#include <../lx2160asi/common.rcw>
++
++/* Modify FlexSPI Clock Divisor value */
++#include <../lx2160asi/flexspi_divisor_28.rcw>
++
++/*PCIe Errata A-009531*/
++#include <../lx2160asi/a009531_PEX3.rcw>
++#include <../lx2160asi/a009531_PEX5.rcw>
++
++/*PCIe Errata A-008851*/
++#include <../lx2160asi/a008851_PEX3.rcw>
++#include <../lx2160asi/a008851_PEX5.rcw>

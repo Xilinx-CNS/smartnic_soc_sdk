@@ -1,0 +1,66 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+# Makefile.help for menuconfig2
+#
+#
+
+a-help:
+	@echo 'Setup first time:'
+	@echo '-----------------'
+	@echo 'make defconfig'
+	@echo 'make deps'
+	@echo 'make'
+	@echo 'make boot'
+	@echo ''	
+	@echo 'Steps to compress downloaded libraries to preseed another repo'
+	@echo '-------------------------------------------------------------'
+	@echo ' make export-downloads - It will create preseed.tgz containing downloads'
+	@echo ''
+	@echo '- Steps to import preseed directory content'
+	@echo '--------------------------------------------------'
+	@echo 'make defconfig'
+	@echo 'Copy preseed.tgz to current directory';
+	@echo 'Optional: rm -r downloads '
+	@echo 'Optional: make deps'
+	@echo 'make import-downloads'
+	@echo 'make'
+	@echo 'make boot'
+	@echo 'Available Build Targets:'
+	@echo '------------------------'
+	@echo 'deps				- Install dependencies required to run abuilder'
+	@echo '<Package-name>			- Build particular Package'
+	@echo 'downloads-snapshot		- Create snapshot of downloads folder'
+	@echo 'buildroot-snapshot		- Create snapshot of buildroot package'
+	@echo
+	@echo 'Cleaning targets:'
+	@echo ' clean				- Delete package object files'
+	@echo ' distclean			- Delete package object files and source from downloads folder (including .config)'
+	@echo ' reallyclean			- Delete build and distro directories'
+	@echo ' <Package-name>-clean		- Delete particular package object files and its source'
+	@echo
+	@echo 'Configuration Target:'
+	@echo ' menuconfig			- Interactive configuration'
+	@echo ' <Package-Name>-menuconfig	- Interactive package configuration if present'
+	@echo ' defconfig			- Default Configuration'
+	@echo
+	@echo 'Installation targets:'
+	@echo '  dist				- Install selected binaries'
+	@echo '  source				- Install selected source files'
+	@echo
+	@echo 'Utilities:'
+	@echo '  help				- Help'
+	@echo '  <Package-name>-help		- Package related help'
+	@echo
+	@echo 'Environment variables:'
+	@echo '----------------------'
+	@echo '  BUILDDIR=<abspath>		- Use <abspath> as build directory'
+	@echo
+	@echo 'List of Packages:'
+	@echo '-----------------'
+
+MAIN_HELP+=a-help $(TARGETS_HELP)
+

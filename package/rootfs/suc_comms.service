@@ -1,0 +1,19 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+[Unit]
+Description=SuC Communication
+After=power_throttle.service
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=20
+User=root
+ExecStart=/sbin/suc_comms
+
+[Install]
+WantedBy=multi-user.target

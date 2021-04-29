@@ -1,0 +1,103 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo Setting bootargs for root=/dev/ROOT
+
+#SUC Device address
+i2c_chipaddr=0x48
+soc_state_os_start=2
+watchdog_period_offset=0x6
+soc_state_offset=0x7
+scratchpad_offset=0x9
+i2c_test_addr=0xb0000000
+suc_ctrl_offset=0xb
+kernel_timeout=0xB4
+
+i2c dev 0
+echo changing i2c bus to 0
+#set soc state to os_start
+i2c mw $i2c_chipaddr $soc_state_offset $soc_state_os_start 1
+#read scratchpad
+i2c read $i2c_chipaddr $scratchpad_offset 1 $i2c_test_addr
+#set state in scratchpad
+setexpr.b i2c_var *$i2c_test_addr \& 0xF8
+setexpr.b i2c_var $i2c_var \| $soc_state_os_start
+#i2c mw $i2c_chipaddr $scratchpad_offset $i2c_var 1
+# it will disable the auto recovery in maintenance kernel
+i2c mw $i2c_chipaddr $scratchpad_offset $soc_state_os_start 1
+
+setenv fdt_addr_r 0x90000000
+setenv ramdisk_addr_r 0x91000000
+setenv kernel_addr_r 0xa0000000
+
+if test -e mmc DPART /maintenance/maintenance; then
+setenv maintenance yes
+fi;
+
+if env exists maintenance; then
+if test -e usb 0:1 /boot/ITB; then
+echo Loading /boot/ITB from usb;
+load usb 0:1 ${kernel_addr_r} /boot/ITB;
+bootm ${kernel_addr_r};
+else
+echo Booting recovery kernel;
+run xspi_bootcmd;
+fi;
+fi;
+
+
+if test -e mmc KPART /boot/vmlinuz; then
+	if test -e mmc DPART DTB; then
+		#set watchdog timer for kernel boot and enable it
+		i2c mw $i2c_chipaddr $watchdog_period_offset $kernel_timeout 1
+		i2c mw $i2c_chipaddr $suc_ctrl_offset 1 1
+		echo Loading DTB from mmc device DPART
+		load mmc DPART ${fdt_addr_r} DTB;
+		echo Loading /boot/vmlinuz from mmc device KPART;
+		ext2load mmc KPART ${kernel_addr_r} /boot/vmlinuz;
+		if env exists noinitramfs; then
+			echo "booting WITHOUT initrd.img"
+			booti ${kernel_addr_r} - ${fdt_addr_r};
+		else
+			if test -e mmc KPART /boot/initramfs; then
+				echo Loading /boot/initramfs from mmc device KPART
+				ext2load mmc KPART ${ramdisk_addr_r} /boot/initramfs;
+				booti ${kernel_addr_r} ${ramdisk_addr_r}:${filesize} ${fdt_addr_r};				
+			else
+				booti ${kernel_addr_r} - ${fdt_addr_r};
+			fi
+		fi
+	else
+		echo No DTB in mmc device DPART
+	fi;
+else
+	echo No /boot/vmlinuz in mmc device KPART
+fi;
+
+if test -e mmc GPART GRUB; then
+echo Loading DTB from mmc device DPART
+echo Loading GRUB from mmc device GPART
+load mmc GPART 0xa0000000 GRUB;
+load mmc DPART 0x90000000 DTB;
+bootefi 0xa0000000 0x90000000;
+else
+echo No GRUB in mmc device KPART
+fi;
+
+if test -e mmc DPART /boot/ITB; then
+echo Loading /boot/ITB from mmc device DPART;
+ext2load mmc DPART ${kernel_addr_r} /boot/ITB;
+bootm ${kernel_addr_r};
+else
+echo No /boot/ITB in mmc device DPART
+fi;
+
+if test -e usb 0:1 /boot/ITB; then
+echo Loading /boot/ITB from usb;
+load usb 0:1 ${kernel_addr_r} /boot/ITB;
+bootm ${kernel_addr_r};
+fi;
+

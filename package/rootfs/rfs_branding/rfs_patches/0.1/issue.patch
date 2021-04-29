@@ -1,0 +1,8 @@
+Index: 0.1/etc/issue
+===================================================================
+--- 0.1.orig/etc/issue
++++ 0.1/etc/issue
+@@ -1,2 +1,2 @@
+-Ubuntu 20.04.2 LTS \n \l
++SNIC Linux, based on Ubuntu 20.04.2 \n \l
+ 

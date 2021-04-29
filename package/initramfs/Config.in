@@ -1,0 +1,106 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_INITRAMFS
+	bool "Build initramfs package"
+	default "y"
+
+if SNIC_PACKAGE_INITRAMFS
+
+menu "Initramfs Options"
+
+config SNIC_INITRAMFS_BUILDROOT
+	select SNIC_PACKAGE_BUILDROOT
+	bool "Use buildroot initramfs"
+	default "y"
+	help
+	  Use the buildroot root filesystem as initramfs source
+
+config SNIC_INITRAMFS_PATH
+	depends on !SNIC_INITRAMFS_BUILDROOT
+	string "Specify path to initramfs cpio file"
+	default "~/initramfs.cpio"
+	help
+	  Use an already generated initramfs
+choice
+prompt "IP Network Configuration"
+	default SNIC_INITRAMFS_MANUAL
+
+config SNIC_INITRAMFS_STATIC
+	bool "Disable network interface"
+	help
+	  Do not assign any IP to interface
+
+config SNIC_INITRAMFS_DHCP
+	bool "Enable DHCP"
+	help
+	  Assign IP from dhcp server
+
+config SNIC_INITRAMFS_STATIC
+	bool "Enable Static IP"
+	help
+	  Assign static IP
+
+endchoice
+
+if SNIC_INITRAMFS_STATIC
+
+config SNIC_INITRAMFS_STATIC_IP
+    string "IP Address"
+    default "192.168.1.1"
+
+config SNIC_INITRAMFS_STATIC_SUBNET
+    string "Subnet"
+    default "255.255.255.0"
+
+endif
+
+config SNIC_INITRAMFS_CONFIG
+    bool "Remote configuration management"
+    default y
+
+if SNIC_INITRAMFS_CONFIG
+
+menu "Remote configuration server settings"
+
+config SNIC_INITRAMFS_CONFIG_SERVER
+    depends on SNIC_INITRAMFS_CONFIG
+    string "Update server IP"
+    default "0.0.0.0"
+
+config SNIC_INITRAMFS_CONFIG_TRANSPORT
+    depends on SNIC_INITRAMFS_CONFIG
+    string "Update server transport protocol"
+    default "http"
+
+config SNIC_INITRAMFS_CONFIG_USER
+    depends on SNIC_INITRAMFS_CONFIG
+    string "Update server user (ssh)"
+    default "root"
+
+config SNIC_INITRAMFS_CONFIG_PORT
+    depends on SNIC_INITRAMFS_CONFIG
+    string "Update server port"
+    default "80"
+
+config SNIC_INITRAMFS_CONFIG_DIR
+    depends on SNIC_INITRAMFS_CONFIG
+    string "Update server directory"
+    default "/u26z"
+
+config SNIC_INITRAMFS_CONFIG_FILE
+    depends on SNIC_INITRAMFS_CONFIG
+    string "update filename"
+    default "update.json"
+
+endmenu
+
+endif
+
+endmenu
+
+endif
+

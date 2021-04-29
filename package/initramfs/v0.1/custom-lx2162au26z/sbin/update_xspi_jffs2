@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FLASH_ERASE=`which flash_erase`
+MTD=/dev/mtd2
+BS=512
+JFFS2_FILE=$1
+let JFFS2_OFFSET=56*1024*1024
+let JFFS2_SKIP=${JFFS2_OFFSET}/${BS}
+umount /mnt/rwfs
+if [ ! -x ${FLASH_ERASE} ]; then
+echo "No ${FLASH_ERASE} found"
+exit 1
+fi
+if [ ! -e ${MTD} ]; then
+echo "No ${MTD} found"
+exit 1
+fi
+if [ -r ${JFFS2_FILE} ]; then
+flash_erase ${MTD} 0 0
+echo "Updating jffs2 partition with ${JFFS2_FILE}"
+dd if=${JFFS2_FILE} of=${MTD} bs=${BS} skip=${JFFS2_SKIP}
+else
+echo "${JFFS2_FILE} does not exist"
+fi

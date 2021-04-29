@@ -1,0 +1,50 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_BUILDROOT
+	bool "Buildroot Root Filesystem"
+	default "n"
+
+menu "Buildroot Options"
+	depends on SNIC_PACKAGE_BUILDROOT
+
+if SNIC_PACKAGE_BUILDROOT
+choice
+	prompt "Choose which buildroot version to build"
+	default SNIC_BUILDROOT_FEB_2020
+
+config SNIC_BUILDROOT_FEB_2020
+	bool "Feb 2020 buildroot"
+
+endchoice
+
+choice
+prompt "Components"
+	default SNIC_BUILDROOT_DEFAULT_CONFIG
+	help
+	  Select buildroot rootfs components.
+
+config SNIC_BUILDROOT_DEFAULT_CONFIG
+	bool "Default"
+	help
+	  Default components - includes OVS.
+
+config SNIC_BUILDROOT_CEPH_CONFIG
+	bool "Default with Ceph support"
+	help
+	  Default components - includes OVS and Ceph.
+
+endchoice
+
+config SNIC_BUILDROOT_PRESEED
+	bool "Preseed dowload directory"
+	depends on SNIC_PACKAGE_BUILDROOT && SNIC_BUILD_PRESEED
+	default "y"
+
+endif
+
+endmenu
+

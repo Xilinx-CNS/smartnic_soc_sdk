@@ -1,0 +1,66 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: linux-lx2162a-bsp0.4-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z.dts
+===================================================================
+--- linux-lx2162a-bsp0.4-lx2162au26z.orig/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z.dts
++++ linux-lx2162a-bsp0.4-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z.dts
+@@ -74,3 +74,24 @@
+         phy-handle = <&rgmii_phy1>;
+         phy-connection-type = "rgmii-id";
+ };
++
++&core_thermal1{
++    trips {
++        core_cluster_alert: core-cluster-alert {
++            temperature = <95000>;
++            hysteresis = <2000>;
++            type = "passive";
++        };
++       core_cluster_hot: core-cluster-hot {
++            temperature = <97000>;
++            hysteresis = <2000>;
++            type = "hot";
++        };
++        core_cluster_crit: core-cluster-crit {
++            temperature = <105000>;
++            hysteresis = <2000>;
++            type = "critical";
++        };
++    };
++};
++
+Index: linux-lx2162a-bsp0.4-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z-m.dts
+===================================================================
+--- linux-lx2162a-bsp0.4-lx2162au26z.orig/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z-m.dts
++++ linux-lx2162a-bsp0.4-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z-m.dts
+@@ -107,4 +107,24 @@
+ &dpmac17 {
+         phy-handle = <&rgmii_phy1>;
+         phy-connection-type = "rgmii-id";
+-};
+\ No newline at end of file
++};
++
++&core_thermal1{
++    trips {
++        core_cluster_alert: core-cluster-alert {
++            temperature = <95000>;
++            hysteresis = <2000>;
++            type = "passive";
++        };
++        core_cluster_hot: core-cluster-hot {
++            temperature = <97000>;
++            hysteresis = <2000>;
++            type = "hot";
++        };
++        core_cluster_crit: core-cluster-crit {
++            temperature = <105000>;
++            hysteresis = <2000>;
++            type = "critical";
++        };
++    };
++};

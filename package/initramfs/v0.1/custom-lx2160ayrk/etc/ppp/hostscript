@@ -1,0 +1,7 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+sudo -b pppd -detach noauth nocrtscts local 192.168.42.1: /dev/ttyUSB0 115200

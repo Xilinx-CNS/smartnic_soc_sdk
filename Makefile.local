@@ -1,0 +1,64 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+
+$(IMPORTDIR)/preseed.stamp:
+	mkdir -p $(PRESEEDDIR)
+	mkdir -p $(IMPORTDIR)
+	if [ -e $(IMPORTDIR)/imports.tgz ]; then ( cd $(IMPORTDIR); tar xvf $(IMPORTDIR)/imports.tgz ) fi;
+	touch $(IMPORTDIR)/preseed.stamp
+
+$(BUILDDIR)/setup.stamp $(DOWNLOADDIR)/setup.stamp $(PRESEEDDIR)/setup.stamp  $(IMPORTDIR)/setup.stamp: $(IMPORTDIR)/preseed.stamp
+	mkdir -p $(BUILDDIR) && \
+	mkdir -p $(DISTROBIN) && \
+	mkdir -p $(DEBDIR) && \
+	mkdir -p $(DOWNLOADDIR) && \
+	mkdir -p $(IMPORTDIR) && \
+	mkdir -p $(PRESEEDDIR) && \
+	mkdir -p $(SOURCEDIR) || exit 1
+	touch $(BUILDDIR)/setup.stamp
+	touch $(DOWNLOADDIR)/setup.stamp
+	touch $(IMPORTDIR)/setup.stamp
+	touch $(PRESEEDDIR)/setup.stamp
+
+setup: $(BUILDDIR)/setup.stamp $(DOWNLOADDIR)/setup.stamp $(PRESEEDDIR)/setup.stamp $(DOWNLOADDIR)/setup.stamp $(IMPORTDIR)/setup.stamp
+
+export-me:
+	rm -rf $(DISTRODIR)/build-system.tgz
+#	make -C config distclean
+	rm -rf config/board-config
+	tar -cvzf $(DISTRODIR)/abuilder.tgz .git* Make* Config* Read* package/* config/* target/*
+
+export-repo:
+	tar -cvzf $(DISTRODIR)/abuilder-git.tgz .git
+
+downloads-snapshot:
+	mkdir -p $(PRESEEDDIR)
+	(cd $(DOWNLOADDIR); tar -cvzf $(PRESEEDDIR)/downloads.tgz *.stamp *.tgz)
+
+export-downloads: downloads-snapshot buildroot-snapshot rootfs_base-snapshot
+	@(cd $(CHECKOUT); tar -cvzf preseed.tgz preseed)
+
+import-downloads:
+	 @if [ -e preseed.tgz ]; then \
+		( tar xzf preseed.tgz ) \
+        else \
+                echo "Error:preseed.tgz not found. Missed to copy preseed tar to current directory?" ; \
+        fi;
+
+	mkdir -p $(DOWNLOADDIR)
+
+	if [ -e $(PRESEEDDIR)/downloads.tgz ]; then \
+		( cd $(DOWNLOADDIR); tar xvf $(PRESEEDDIR)/downloads.tgz ) \
+	else \
+		echo "Error:downloads.tgz not found in  preseed directory." ; \
+	fi;
+
+TARGETS_ENV+=setup
+
+.phony: setup export-me export-repo downloads-snapshot
+

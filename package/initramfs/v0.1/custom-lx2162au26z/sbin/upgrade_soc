@@ -1,0 +1,42 @@
+#!/usr/bin/python
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+import argparse
+import os
+import sys
+
+desc= '''
+Copyright 2020-2021 Xilinx, Inc.
+All rights reserved.
+
+Xilinx Alveo SmartNIC utility to configure SoC images upgrades
+'''
+
+parser = argparse.ArgumentParser(description=desc)
+parser.add_argument('--update-rootfs', help=" Configure rootfs image upgrade on next boot with Rootfs tar.gz file path provided", dest='rfspath', type = str, nargs=1, default=None)
+parser.add_argument('--update-xspi', help=(" Configure flash image upgrade on next boot with the image path provided"), dest='xspipath', type = str, nargs=1, default=None)
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+args = parser.parse_args()
+if len(sys.argv) == 1:
+    args = parser.parse_args(['-h', ])
+else:
+    args = parser.parse_args()
+
+if args.rfspath:
+    print(args.rfspath)
+    os.system("update_maintenance --update-rootfs %s" % args.rfspath[0])
+if args.xspipath:
+    if path_exists(args.xspipath[0]):
+        os.system("update_xspi %s" % args.xspipath[0])

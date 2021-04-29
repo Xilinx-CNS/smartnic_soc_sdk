@@ -1,0 +1,482 @@
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/cmd/suc.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+@@ -21,11 +21,17 @@
+ #include <linux/compiler.h>
+ #include <dm/device-internal.h>
+ 
+-
+ #define i2cdev 0
+-#define SUC_I2C_ADDR 0x48
+ 
+-#define SUC_MD_ADDR_LEN 1
++typedef enum suc_slave_addr {
++    SUC_MD_I2C_ADDR = 0x48,
++    SUC_EEPROM_I2C_ADDR = 0x50
++}suc_slave_addr;
++
++typedef enum suc_offset_len {
++    SUC_MD_OFFSET_LEN = 1,
++    SUC_EEPROM_OFFSET_LEN = 2
++}suc_offset_len;
+ 
+ #define SUC_DEVICE_ID 0x53
+ #define SUC_DEVICE_VERSION 1
+@@ -63,11 +69,87 @@
+ #define SUC_FW_VERSION_START_OFFSET 0x80
+ #define SUC_UBOOT_VERSION_START_OFFSET 0x88
+ 
++//FPT
++#define EEPROM_PARTITION_SIZE 1024
++#define FPT_MAGIC_WORD  0x3A0BC563
++#define FPT_VERSION 4
++#define FPT_HEADER_SIZE 128
++#define FPT_ENTRY_SIZE 128
++#define FPT_ENTRIES 4
++#define FPT_BUNDLE_UUID 0
++
++#define SOC_BOOTLOADER 0
++#define SOC_FIRMWARE 1
++#define SOC_KERNEL 2
++#define SOC_UPDATE 3
++
++typedef enum partition_type {
++    PARTITION_TYPE_SOC_BOOTLOADER=0x2000,
++    PARTITION_TYPE_SOC_FIRMWARE,
++    PARTITION_TYPE_SOC_KERNEL,
++    PARTITION_TYPE_SOC_UPDATE
++}partition_type;
++
++#define ACTIVE (1 << 0)
++
++#define READABLE_NEVER (0 << 1)
++#define READABLE_IFINACTIVE (1 << 1)
++#define READABLE_IFACTIVE (2 << 1)
++#define READABLE_ALWAYS (3 << 1)
++
++#define WRITEABLE_NEVER (0 << 3)
++#define WRITEABLE_IFINACTIVE (1 << 3)
++#define WRITEABLE_IFACTIVE (2 << 3)
++#define WRITEABLE_ALWAYS (3 << 3)
++
++#define IMAGE_SIZE_PRESENT (1 << 5)
++#define IMAGE_CHECKSUM_PRESENT (1 << 6)
++#define IMAGE_VERSION_PRESENT (1 << 7)
++#define IMAGE_SECURITY_LEVEL_PRESENT (1 << 8)
++
+ #ifdef CONFIG_DM_I2C
+ static struct udevice *i2c_suc_bus;
+ #endif
+ 
+-static int suc_read(uint offset, uint8_t *buffer, int len)
++typedef struct fpt_header
++{
++    uint32_t magic_word;
++    uint8_t version;
++    uint8_t header_size;
++    uint8_t entry_size;
++    uint8_t num_entries;
++    uint32_t entries_checksum;
++    uint8_t rsvd1[4];
++    uint64_t bundle_uuid_lsb;
++    uint64_t bundle_uuid_msb;
++    uint8_t rsvd2[92];
++    uint32_t header_checksum;
++}fpt_header;
++
++typedef struct fpt_entry
++{
++    uint32_t partition_type;
++    uint32_t partition_subtype;
++    uint32_t partition_deviceid;
++    uint32_t partition_baseaddress;
++    uint32_t partition_size;
++    uint16_t partition_common_flags;
++    uint16_t partition_specific_flags;
++    uint32_t image_size;
++    uint32_t image_checksum;
++    uint64_t image_version_lsb;
++    uint64_t image_version_msb;
++    uint32_t image_security_level;
++    uint8_t rsvd[76];
++}fpt_entry;
++
++typedef struct flash_partition_table
++{
++    fpt_header *header;
++    fpt_entry *entry;
++}flash_partition_table;
++
++static int suc_read(suc_slave_addr addr,suc_offset_len offset_len, uint offset, uint8_t *buffer, int len)
+ {
+ #ifdef CONFIG_DM_I2C
+     struct udevice *dev;
+@@ -76,7 +158,7 @@ static int suc_read(uint offset, uint8_t
+     int ret;
+ 
+ #ifdef CONFIG_DM_I2C
+-    ret = i2c_get_chip(i2c_suc_bus, SUC_I2C_ADDR, 1, &dev);
++    ret = i2c_get_chip(i2c_suc_bus, addr, offset_len, &dev);
+     if (ret) {
+         printf("Error reading I2C device \n");
+         return ret;
+@@ -84,7 +166,7 @@ static int suc_read(uint offset, uint8_t
+ 
+     ret = dm_i2c_read(dev, offset, buffer, len);
+ #else
+-    ret = i2c_read(SUC_I2C_ADDR, offset, SUC_MD_ADDR_LEN, buffer, len);
++    ret = i2c_read(addr, offset, offset_len, buffer, len);
+ #endif
+     if (ret) {
+         printf("Error reading I2C device \n");
+@@ -93,7 +175,7 @@ static int suc_read(uint offset, uint8_t
+     return 0;
+ }
+ 
+-static int suc_write(uint offset, uint8_t *buffer, int len)
++static int suc_write(suc_slave_addr addr,suc_offset_len offset_len, uint offset, uint8_t *buffer, int len)
+ {
+     int ret, i=0;
+ #ifdef CONFIG_DM_I2C
+@@ -102,7 +184,7 @@ static int suc_write(uint offset, uint8_
+ #endif
+ 
+ #ifdef CONFIG_DM_I2C
+-    ret = i2c_get_chip(i2c_suc_bus, SUC_I2C_ADDR, 1, &dev);
++    ret = i2c_get_chip(i2c_suc_bus, addr, offset_len, &dev);
+     if (ret) {
+         printf("Error reading I2C device \n");
+         return ret;
+@@ -116,17 +198,42 @@ static int suc_write(uint offset, uint8_
+     }
+ 
+     i2c_chip->flags &= ~DM_I2C_CHIP_WR_ADDRESS;
+-    while(len--) {
+-        ret = dm_i2c_write(dev, offset+i, &buffer[i], 1);
++#endif
++    if (addr == SUC_MD_I2C_ADDR) {
++        while(len--) {
++#ifdef CONFIG_DM_I2C
++            ret = dm_i2c_write(dev, offset+i, &buffer[i], 1);
+ #else
+-        ret = i2c_write(chip, offset+i, SUC_MD_ADDR_LEN, &buffer[i], 1);
++            ret = i2c_write(addr, offset+i, offset_len, &buffer[i], 1);
+ #endif
+-        if (ret) {
+-            printf("error in write to I2C device\n");
+-            return ret;
++            if (ret) {
++                printf("error in write to I2C device\n");
++                return ret;
++            }
++            i++;
++        }
++    } else {
++        /* for EERPOM case, writing 32 bytes at a time */
++        while(len > 0) {
++            int write_size = min_t(int, len, 32);
++#ifdef CONFIG_DM_I2C
++            ret = dm_i2c_write(dev, offset, buffer, write_size);
++#else
++            ret = i2c_write(addr, offset, offset_len, buffer, write_size);
++#endif
++            if (ret) {
++                printf("error in write to I2C device\n");
++                return ret;
++            }
++
++            offset += write_size;
++            buffer += write_size;
++            len -= write_size;
++
++            udelay(8000);
+         }
+-		i++;
+     }
++
+     return 0;
+ }
+ 
+@@ -158,7 +265,7 @@ static int do_suc_check_maint(cmd_tbl_t
+     }
+ 
+     /*Verify device ID and Version*/
+-    ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVID_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure reading suc device ID (%d)\n", ret);
+         return ret;
+@@ -169,7 +276,7 @@ static int do_suc_check_maint(cmd_tbl_t
+         return -ENODEV;
+     }
+ 
+-    ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVVERSION_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure reading suc Version (%d)\n", ret);
+         return ret;
+@@ -182,14 +289,14 @@ static int do_suc_check_maint(cmd_tbl_t
+ 
+     /*set soc type to NXP*/
+     value = SOC_TYPE_NXP;
+-    ret = suc_write(SUC_SOC_TYPE_OFFSET, &value, 1);
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SOC_TYPE_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure writing to SuC (%d)\n", ret);
+         return ret;
+     }
+ 
+     /*TODO update SOC device ID*/
+-    ret = suc_write(SUC_SOC_DEVID_OFFSET,
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SOC_DEVID_OFFSET,
+                     (unsigned char *)&soc_device_id, 4);
+     if (ret) {
+         printf("Failure writing to SuC (%d)\n", ret);
+@@ -198,7 +305,7 @@ static int do_suc_check_maint(cmd_tbl_t
+ 
+     /*set soc state to U-BOOT*/
+     value = SOC_STATE_UBOOT;
+-    ret = suc_write(SUC_SOC_STATE_OFFSET, &value, 1);
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SOC_STATE_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure writing to SuC (%d)\n", ret);
+         return ret;
+@@ -206,14 +313,14 @@ static int do_suc_check_maint(cmd_tbl_t
+ 
+     /*Disable watchdog*/
+     value = 0;
+-    ret = suc_write(SUC_CTRL_OFFSET, &value, 1);
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_CTRL_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure writing to SuC (%d)\n", ret);
+         return ret;
+     }
+ 
+     /*Read the status flags*/
+-    ret = suc_read(SUC_STATUS_FLAGS_OFFSET, &value, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_STATUS_FLAGS_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure reading suc device (%d)\n", ret);
+         return ret;
+@@ -245,7 +352,7 @@ static int do_suc_check_maint(cmd_tbl_t
+         env_set("maintenance", "yes");
+ 
+     /*Read the previous soc state*/
+-    ret = suc_read(SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
+     if (ret) {
+         printf("Failure reading scratchpad register (%d)\n", ret);
+         return ret;
+@@ -258,13 +365,13 @@ static int do_suc_check_maint(cmd_tbl_t
+         } else if ((scratchpad & 0x07) == SOC_STATE_OS_RUNNING ||
+                    (scratchpad & 0x07) == SOC_STATE_MAINT_OS_RUNNING) {
+             /*Read the sw reset conut soc state*/
+-            ret = suc_read(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++            ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SW_RESET_COUNT_OFFSET, &value, 1);
+             if (ret) {
+                 printf("Failure reading suc (%d)\n", ret);
+                 return ret;
+             }
+             value += 1;
+-            ret = suc_write(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++            ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SW_RESET_COUNT_OFFSET, &value, 1);
+             if (ret) {
+                 printf("Failure writing to SuC (%d)\n", ret);
+                 return ret;
+@@ -274,7 +381,7 @@ static int do_suc_check_maint(cmd_tbl_t
+             }
+         }
+     } else {
+-       ret = suc_write(SUC_SW_RESET_COUNT_OFFSET, &value, 1);
++       ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SW_RESET_COUNT_OFFSET, &value, 1);
+        if (ret) {
+            printf("Failure writing to SuC (%d)\n", ret);
+            return ret;
+@@ -285,7 +392,7 @@ static int do_suc_check_maint(cmd_tbl_t
+ 
+     /*set the prev state to U-boot and update maintenance flag*/
+     scratchpad = scratchpad | SOC_STATE_UBOOT | needs_maint;
+-    ret = suc_write(SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_SCRATCHPAD_OFFSET, &scratchpad, 1);
+     if (ret) {
+         printf("Failure witing to SuC (%d)\n", ret);
+         return ret;
+@@ -318,7 +425,7 @@ static int do_suc_get_ethaddr(cmd_tbl_t
+     }
+ 
+     /*Verify device ID and Version*/
+-    ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVID_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure reading suc device ID (%d)\n", ret);
+         return ret;
+@@ -328,7 +435,7 @@ static int do_suc_get_ethaddr(cmd_tbl_t
+         return ret;
+     }
+ 
+-    ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++    ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVVERSION_OFFSET, &value, 1);
+     if (ret) {
+         printf("Failure reading suc Version (%d)\n", ret);
+         return ret;
+@@ -340,7 +447,7 @@ static int do_suc_get_ethaddr(cmd_tbl_t
+     }
+ 
+     for (i = 0; i < 6; i++) {
+-        ret = suc_read(SUC_MAC_BASE_OFFSET + i, &macaddr[i], 1);
++        ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_MAC_BASE_OFFSET + i, &macaddr[i], 1);
+             if (ret) {
+                 printf("Failure reading suc Version (%d)\n", ret);
+                 return ret;
+@@ -410,7 +517,7 @@ static int suc_update_uboot_version(void
+ 
+     /* Write LSB for Major, Minor, Patch */
+     for (i = 0; i < 3; ++i) {
+-        ret = suc_write(SUC_UBOOT_VERSION_START_OFFSET + (i * 2), &version_val[i], 1);
++        ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_UBOOT_VERSION_START_OFFSET + (i * 2), &version_val[i], 1);
+         if (ret) {
+             printf("Failed to write uboot version (%d)\n", ret);
+             return ret;
+@@ -418,7 +525,7 @@ static int suc_update_uboot_version(void
+     }
+ 
+     /* Build version = Build at LSB + Dirty flag at MSB */
+-    ret = suc_write(SUC_UBOOT_VERSION_START_OFFSET + (i * 2), &version_val[i], 2);
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_UBOOT_VERSION_START_OFFSET + (i * 2), &version_val[i], 2);
+     if (ret) {
+         printf("Failed to write uboot version (%d)\n", ret);
+         return ret;
+@@ -478,7 +585,7 @@ static int suc_update_fw_version(void)
+     /* Print Dirty Bit + Build version */
+     printf("%u%u\n", version_val[i+1], version_val[i]);
+ 
+-    ret = suc_write(SUC_FW_VERSION_START_OFFSET, version_val, sizeof(version_val));
++    ret = suc_write(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_FW_VERSION_START_OFFSET, version_val, sizeof(version_val));
+     if (ret) {
+         printf("Failed to write fw version (%d)\n", ret);
+         return ret;
+@@ -504,7 +611,7 @@ static int do_suc_update_version(cmd_tbl
+ 	}
+ 
+ 	/* Verify device ID and Version */
+-	ret = suc_read(SUC_DEVID_OFFSET, &value, 1);
++	ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVID_OFFSET, &value, 1);
+ 	if (ret) {
+ 		printf("Failure reading suc device ID (%d)\n", ret);
+ 		return ret;
+@@ -515,7 +622,7 @@ static int do_suc_update_version(cmd_tbl
+ 		return ret;
+ 	}
+ 
+-	ret = suc_read(SUC_DEVVERSION_OFFSET, &value, 1);
++	ret = suc_read(SUC_MD_I2C_ADDR, SUC_MD_OFFSET_LEN, SUC_DEVVERSION_OFFSET, &value, 1);
+ 	if (ret) {
+ 		printf("Failure reading suc Version (%d)\n", ret);
+ 		return ret;
+@@ -543,10 +650,91 @@ static int do_suc_update_version(cmd_tbl
+ 	return 0;
+ }
+ 
++static int do_suc_update_partition_table(cmd_tbl_t *cmdtp, int flag, int argc,
++		                char * const argv[])
++{
++    flash_partition_table fpt;
++    uint8_t eeprom_write_array[EEPROM_PARTITION_SIZE];
++    int ret = -1;
++    int i = 0;
++
++    memset(eeprom_write_array, 0, sizeof(eeprom_write_array));
++
++    fpt.header = (struct fpt_header *)eeprom_write_array;
++
++    /* Assign header values */
++    fpt.header->magic_word = FPT_MAGIC_WORD;
++    fpt.header->version = FPT_VERSION;
++    fpt.header->header_size = FPT_HEADER_SIZE;
++    fpt.header->entry_size = FPT_ENTRY_SIZE;
++    fpt.header->num_entries = FPT_ENTRIES;
++    fpt.header->bundle_uuid_lsb = 0;
++    fpt.header->bundle_uuid_msb = 0;
++
++    /* Assign entries */
++    fpt.entry = (struct fpt_entry *)((uint8_t *)eeprom_write_array + sizeof(fpt_header));
++    for (i = 0; i < fpt.header->num_entries; i++)
++    {
++        fpt.entry[i].partition_subtype = 0;
++        fpt.entry[i].partition_deviceid = 0;
++        fpt.entry[i].image_size = 0;
++        fpt.entry[i].image_checksum = 0;
++        fpt.entry[i].image_version_lsb = 0;
++        fpt.entry[i].image_version_msb = 0;
++        fpt.entry[i].image_security_level = 0;
++        fpt.entry[i].partition_specific_flags = 0;
++
++        switch(i)
++        {
++            case SOC_BOOTLOADER:
++            fpt.entry[i].partition_type = PARTITION_TYPE_SOC_BOOTLOADER;
++            fpt.entry[i].partition_baseaddress = 0x0;
++            fpt.entry[i].partition_size = 0xa00000;
++            fpt.entry[i].partition_common_flags = (ACTIVE | READABLE_IFINACTIVE | WRITEABLE_IFINACTIVE);
++            break;
++
++            case SOC_FIRMWARE:
++            fpt.entry[i].partition_type = PARTITION_TYPE_SOC_FIRMWARE;
++            fpt.entry[i].partition_baseaddress = 0xa00000;
++            fpt.entry[i].partition_size = 0x600000;
++            fpt.entry[i].partition_common_flags = (ACTIVE | READABLE_IFINACTIVE | WRITEABLE_IFINACTIVE);
++            break;
++
++            case SOC_KERNEL:
++            fpt.entry[i].partition_type = PARTITION_TYPE_SOC_KERNEL;
++            fpt.entry[i].partition_baseaddress = 0x1000000;
++            fpt.entry[i].partition_size = 0x2800000;
++            fpt.entry[i].partition_common_flags = (ACTIVE | READABLE_IFINACTIVE | WRITEABLE_IFINACTIVE);
++            break;
++
++            case SOC_UPDATE:
++            fpt.entry[i].partition_type = PARTITION_TYPE_SOC_UPDATE;
++            fpt.entry[i].partition_baseaddress = 0x3800000;
++            fpt.entry[i].partition_size = 0x800000;
++            fpt.entry[i].partition_common_flags = (ACTIVE | READABLE_IFINACTIVE | WRITEABLE_IFINACTIVE);
++            break;
++        }
++    }
++
++    fpt.header->entries_checksum = crc32(0, (unsigned char *)fpt.entry, (fpt.header->num_entries * sizeof(fpt_entry)));
++    fpt.header->header_checksum = crc32(0, (unsigned char *)fpt.header, (sizeof(fpt_header) - 4));
++
++    ret = suc_write(SUC_EEPROM_I2C_ADDR, SUC_EEPROM_OFFSET_LEN, 0x0,
++        &eeprom_write_array[0], (sizeof(fpt_header) + (fpt.header->num_entries * sizeof(fpt_entry))));
++    if (ret)
++    {
++        printf("Write to EEPROM failed\n");
++        return ret;
++    }
++
++    return ret;
++}
++
+ static cmd_tbl_t cmd_suc_sub[] = {
+     U_BOOT_CMD_MKENT(check_maint, 0, 1, do_suc_check_maint, "", ""),
+     U_BOOT_CMD_MKENT(get_ethaddr, 0, 1, do_suc_get_ethaddr, "", ""),
+     U_BOOT_CMD_MKENT(update_version, 0, 0, do_suc_update_version, "Update SOC version with SUC", ""),
++    U_BOOT_CMD_MKENT(update_partition_table, 0, 0, do_suc_update_partition_table, "Update SOC partition table in SUC EEPROM", ""),
+ };
+ 
+ /**
+@@ -582,11 +770,11 @@ static int do_suc(cmd_tbl_t * cmdtp, int
+ static char suc_help_text[] =
+     "check_maint [MAX_COUNTER] [MAX_TIMER] check if recovery is required\n"
+     "suc get_ethaddr\n"
+-    "suc update_version";
++    "suc update_version\n"
++    "suc update_partition_table";
+ #endif
+ U_BOOT_CMD(
+ 	suc, 4, 1, do_suc,
+ 	"suc management commands",
+ 	suc_help_text
+ );
+-

@@ -1,0 +1,45 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo burning efuse to disable security features
+
+i2c_test_addr=0xb0000000
+
+#change the SoC state to UBOOT
+i2c mw 0x48 0x7 0x1
+#sec version flag should be non zero
+setexpr i2c_var *0x8000e90
+if test i2c_var = 0; then
+    echo security is already disabled
+fi
+#direction IRQ11 to OUTGPIO
+mw 0x2320000 0x00100000
+#writing to OUTGPIO
+mw 0x2320008 0x00000000
+
+#read back eFuse status(0x8 for activated)
+sleep 1
+i2c read 0x48 0x70 1 $i2c_test_addr
+setexpr.b i2c_var *$i2c_test_addr
+if test $i2c_var = 8; then
+    echo suc efuse voltage activated
+else
+    echo could not activate efuse voltage $i2c_var
+    exit
+fi
+
+#fusing register
+mw 1e80200 0x10
+mw 1e80020 0x2
+
+#disable outGPIO
+mw 0x2320008 0x00100000
+
+#read sec version flag should read zero if fused successfully.
+setexpr.b i2c_var *0x8000e90
+if test $i2c_var = 0; then
+    echo security features disabled successfully
+fi

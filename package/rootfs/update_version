@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+if [ ! -d /mnt/p2 ]; then
+	mkdir /mnt/p2
+	mount /dev/mmcblk1p2 /mnt/p2
+	soc_version rfs
+	umount /mnt/p2
+	rm -rf /mnt/p2
+fi
+
+exit 0

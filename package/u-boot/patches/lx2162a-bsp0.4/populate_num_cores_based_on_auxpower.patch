@@ -1,0 +1,26 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/cmd/suc.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/cmd/suc.c
+@@ -217,6 +217,15 @@ static int do_suc_check_maint(cmd_tbl_t
+     } else {
+         printf("AUX power not available\n");
+         /*Set number of cores to 8*/
++        uint8_t num_cpus = 8;
++        char buf[500];
++        char *cmdline = env_get("bootargs");
++        if(cmdline == NULL)
++            printf("caught null pointer for bootargs\n");
++        else{
++            sprintf(buf, "%s %s%d", cmdline, "maxcpus=", num_cpus);
++            env_set("bootargs", buf);
++        }
+     }
+ 
+     if (value & POWER_THROTTLE_FLAGS) {

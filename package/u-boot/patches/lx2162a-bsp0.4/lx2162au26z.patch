@@ -1,0 +1,667 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/Kconfig
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/arch/arm/Kconfig
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/Kconfig
+@@ -1229,6 +1229,18 @@ config TARGET_LX2160AYRK
+ 	  is a high-performance development platform that supports the
+ 	  QorIQ LX2160A/LX2120A/LX2080A Layerscape Architecture processor.
+ 
++config TARGET_LX2162AU26Z
++	bool "Support lx2162au26z"
++	select ARCH_LX2160A
++	select ARCH_MISC_INIT
++	select ARM64
++	select ARMV8_MULTIENTRY
++	select ARCH_SUPPORT_TFABOOT
++	select BOARD_LATE_INIT
++	help
++	  Support for NXP LX2162AU26Z platform.
++	  The lx2162au26z support is based on LX2160A Layerscape Architecture processor.
++
+ config TARGET_HIKEY
+ 	bool "Support HiKey 96boards Consumer Edition Platform"
+ 	select ARM64
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/cpu/armv8/Kconfig
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/arch/arm/cpu/armv8/Kconfig
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/cpu/armv8/Kconfig
+@@ -110,6 +110,7 @@ config PSCI_RESET
+ 		   !TARGET_LS1046AFRWY && \
+ 		   !TARGET_LS2081ARDB && !TARGET_LX2160ARDB && \
+ 		   !TARGET_LX2160AYRK && \
++		   !TARGET_LX2162AU26Z && \
+ 		   !TARGET_LX2160AQDS && !TARGET_LX2162AQDS && \
+ 		   !ARCH_UNIPHIER && !TARGET_S32V234EVB
+ 	help
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/Makefile
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/arch/arm/dts/Makefile
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/Makefile
+@@ -348,6 +348,7 @@ dtb-$(CONFIG_FSL_LSCH3) += fsl-ls2080a-q
+ 	fsl-ls1028a-qds.dtb \
+ 	fsl-lx2160a-rdb.dtb \
+ 	fsl-lx2160a-yrk.dtb \
++	fsl-lx2162a-u26z.dtb \
+ 	fsl-lx2160a-qds.dtb \
+ 	fsl-lx2162a-qds.dtb
+ dtb-$(CONFIG_FSL_LSCH2) += fsl-ls1043a-qds-duart.dtb \
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z.dts
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z.dts
+@@ -0,0 +1,96 @@
++// SPDX-License-Identifier: GPL-2.0+ OR X11
++/*
++ * Solarflare NXP LX2162AU26Z device tree source
++ *
++ * Author:	Priyanka Jain <priyanka.jain@nxp.com>
++ *		Sriram Dash <sriram.dash@nxp.com>
++ *
++ * Copyright 2018 NXP
++ *
++ */
++
++/dts-v1/;
++
++#include "fsl-lx2160a.dtsi"
++
++/ {
++	model = "Xilinx NXP Layerscape LX2162AU26Z Board";
++	compatible = "fsl,lx2160au26z", "fsl,lx2160a";
++
++	aliases {
++		spi0 = &fspi;
++	};
++};
++
++&fspi {
++	bus-num = <0>;
++	status = "okay";
++/*	fspi-has-second-chip; */
++
++	qflash0: mt35xu02gcba@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spi-flash";
++		spi-max-frequency = <20000000>;
++		reg = <0>;
++		/* The following setting enables 1-1-8 (CMD-ADDR-DATA) mode */
++		fspi-rx-bus-width = <8>; /* 8 FSPI Rx lines */
++		fspi-tx-bus-width = <1>; /* 1 FSPI Tx line */
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++			partition@0 {
++				label = "firmware0";
++				reg = <0x0 0x1000000>;
++/*				read-only; */
++				lock;
++			};
++			partition@1000000 {
++				label = "itb0";
++				reg = <0x1000000 0x2800000>;
++			};
++			partition@3800000 {
++				label = "nvm0";
++				reg = <0x3800000 0x0800000>;
++			};
++		};
++	};
++
++	/*
++	 * MCR2[SAMEDEVICEEN] bit is enabled in FlexSPI controller for
++	 * LX2160AYRK.It has the same type of flash slave device
++	 * connected on both A0 and A1. No need to provide node info
++	 * for second flash device.
++	 */
++};
++
++&i2c0 {
++	status = "okay";
++	u-boot,dm-pre-reloc;
++};
++
++&usb0 {
++	status = "okay";
++};
++
++&esdhc0 {
++	status = "okay";
++};
++
++&esdhc1 {
++	status = "okay";
++};
++
++&pcie2 {
++	status = "disabled";
++};
++
++&pcie5 {
++	status = "disabled";
++};
++
++&pcie6 {
++	status = "disabled";
++};
++
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/Kconfig
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/board/freescale/lx2160a/Kconfig
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/Kconfig
+@@ -41,6 +41,23 @@ config SYS_CONFIG_NAME
+ source "board/freescale/common/Kconfig"
+ endif
+ 
++if TARGET_LX2162AU26Z
++
++config SYS_BOARD
++	default "lx2160a"
++
++config SYS_VENDOR
++	default "freescale"
++
++config SYS_SOC
++	default "fsl-layerscape"
++
++config SYS_CONFIG_NAME
++	default "lx2162au26z"
++
++source "board/freescale/common/Kconfig"
++endif
++
+ if TARGET_LX2160AQDS
+ 
+ config SYS_BOARD
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/Makefile
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/board/freescale/lx2160a/Makefile
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/Makefile
+@@ -8,5 +8,6 @@ obj-y += lx2160a.o
+ obj-y += ddr.o
+ obj-$(CONFIG_TARGET_LX2160ARDB) += eth_lx2160ardb.o
+ obj-$(CONFIG_TARGET_LX2160AYRK) += eth_lx2160ayrk.o
++obj-$(CONFIG_TARGET_LX2162AU26Z) += eth_lx2162au26z.o
+ obj-$(CONFIG_TARGET_LX2160AQDS) += eth_lx2160aqds.o
+ obj-$(CONFIG_TARGET_LX2162AQDS) += eth_lx2162aqds.o
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/eth_lx2162au26z.c
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/eth_lx2162au26z.c
+@@ -0,0 +1,60 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2018 NXP
++ *
++ */
++
++#include <common.h>
++#include <command.h>
++#include <netdev.h>
++#include <malloc.h>
++#include <fsl_mdio.h>
++#include <miiphy.h>
++#include <phy.h>
++#include <fm_eth.h>
++#include <asm/io.h>
++#include <exports.h>
++#include <asm/arch/fsl_serdes.h>
++#include <fsl-mc/fsl_mc.h>
++#include <fsl-mc/ldpaa_wriop.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++int board_eth_init(bd_t *bis)
++{
++#if defined(CONFIG_FSL_MC_ENET)
++	struct memac_mdio_info mdio_info;
++	struct memac_mdio_controller *reg;
++	struct mii_dev *dev;
++
++	reg = (struct memac_mdio_controller *)CONFIG_SYS_FSL_WRIOP1_MDIO1;
++	mdio_info.regs = reg;
++	mdio_info.name = DEFAULT_WRIOP_MDIO1_NAME;
++
++	/* Register the EMI 1 */
++	fm_memac_mdio_init(bis, &mdio_info);
++
++	wriop_set_phy_address(WRIOP1_DPMAC17, 0, RGMII_PHY_ADDR1);
++
++	dev = miiphy_get_dev_by_name(DEFAULT_WRIOP_MDIO1_NAME);
++	wriop_set_mdio(WRIOP1_DPMAC17, dev);
++
++	/* LED configuration */
++	dev->write(dev, RGMII_PHY_ADDR1, MDIO_DEVAD_NONE, 0x1f, 0xd04);
++	dev->write(dev, RGMII_PHY_ADDR1, MDIO_DEVAD_NONE, 0x10, 0xf68);
++	dev->write(dev, RGMII_PHY_ADDR1, MDIO_DEVAD_NONE, 0x1f, 0);
++
++	cpu_eth_init(bis);
++#endif /* CONFIG_FSL_MC_ENET */
++
++	return pci_eth_init(bis);
++}
++
++#if defined(CONFIG_RESET_PHY_R)
++void reset_phy(void)
++{
++#if defined(CONFIG_FSL_MC_ENET)
++	mc_env_boot();
++#endif
++}
++#endif /* CONFIG_RESET_PHY_R */
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/configs/lx2162au26z_tfa_SECURE_BOOT_defconfig
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/configs/lx2162au26z_tfa_SECURE_BOOT_defconfig
+@@ -0,0 +1,96 @@
++CONFIG_ARM=y
++CONFIG_TARGET_LX2162AU26Z=y
++CONFIG_TFABOOT=y
++CONFIG_SYS_TEXT_BASE=0x82000000
++CONFIG_SYS_MALLOC_F_LEN=0x6000
++# CONFIG_EMC2305 is not set
++CONFIG_SECURE_BOOT=y
++CONFIG_FSPI_AHB_EN_4BYTE=y
++CONFIG_NR_DRAM_BANKS=3
++CONFIG_ARMV8_SEC_FIRMWARE_SUPPORT=y
++CONFIG_SEC_FIRMWARE_ARMV8_PSCI=y
++# CONFIG_AHCI is not set
++# CONFIG_SCSI is not set
++# CONFIG_LIBATA is not set
++# CONFIG_SCSI_AHCI is not set
++CONFIG_FIT_VERBOSE=y
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_OF_STDOUT_VIA_ALIAS=y
++CONFIG_USE_BOOTARGS=y
++CONFIG_BOOTARGS="console=ttyAMA0,115200 root=/dev/ram0 earlycon=pl011,mmio32,0x21c0000 ramdisk_size=0x2000000 default_hugepagesz=1024m hugepagesz=1024m hugepages=2 pci=pcie_bus_perf"
++# CONFIG_USE_BOOTCOMMAND is not set
++
++CONFIG_LOGLEVEL=11
++CONFIG_SPL_LOGLEVEL=11
++CONFIG_DISPLAY_CPUINFO=y
++CONFIG_DISPLAY_BOARDINFO=y
++CONFIG_DISPLAY_BOARDINFO_LATE=y
++
++CONFIG_CMD_GREPENV=y
++# CONFIG_CMD_EEPROM is not set
++CONFIG_CMD_GPT=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_SF=y
++# CONFIG_CMD_SCSI is not set
++# CONFIG_CMD_USB is not set
++CONFIG_CMD_CACHE=y
++CONFIG_MP=y
++CONFIG_OF_CONTROL=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_DEFAULT_DEVICE_TREE="fsl-lx2162a-u26z"
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_DM=y
++# CONFIG_SATA_CEVA is not set
++CONFIG_CONS_INDEX=0
++CONFIG_DM_GPIO=y
++CONFIG_DM_I2C=y
++CONFIG_I2C_SET_DEFAULT_BUS_NUM=y
++CONFIG_I2C_DEFAULT_BUS_NUMBER=0
++CONFIG_DM_MMC=y
++CONFIG_FSL_ESDHC=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_FLASH_MICRON=y
++CONFIG_SPI_FLASH_STMICRO=y
++# CONFIG_SPI_FLASH_USE_4K_SECTORS is not set
++# CONFIG_PHYLIB is not set
++# CONFIG_PHY_AQUANTIA is not set
++# CONFIG_PHY_ATHEROS is not set
++# CONFIG_PHY_CORTINA is not set
++# CONFIG_PHY_INPHI is not set
++CONFIG_E1000=y
++CONFIG_NETDEVICES=y
++# CONFIG_PHY_GIGE is not set
++CONFIG_CMD_NET=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_PXE=y
++# CONFIG_CMD_MII is not set
++CONFIG_CMD_DHCP=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_EXT2=y
++CONFIG_PCI=y
++CONFIG_DM_PCI=y
++CONFIG_DM_PCI_COMPAT=y
++CONFIG_PCIE_LAYERSCAPE_GEN4=y
++CONFIG_PCIE_LAYERSCAPE=y
++# CONFIG_DM_RTC is not set
++# CONFIG_RTC_PCF2127 is not set
++# CONFIG_DM_SCSI is not set
++CONFIG_DM_SERIAL=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_NXP_FSPI=y
++# CONFIG_USB is not set
++# CONFIG_DM_USB is not set
++# CONFIG_USB_XHCI_HCD is not set
++# CONFIG_USB_XHCI_DWC3 is not set
++CONFIG_NET=y
++CONFIG_RSA=y
++CONFIG_SPL_RSA=y
++CONFIG_RSA_SOFTWARE_EXP=y
++CONFIG_EFI_LOADER_BOUNCE_BUFFER=y
++CONFIG_HUSH_PARSER=y
++CONFIG_CMD_SETEXPR=y
++CONFIG_GIC_V3_ITS=y
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/include/configs/lx2162au26z.h
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/include/configs/lx2162au26z.h
+@@ -0,0 +1,69 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright 2018 NXP
++ */
++
++#ifndef __LX2_U26Z_H
++#define __LX2_U26Z_H
++
++#include "lx2160a_common.h"
++
++#define CONFIG_ESDHC_DETECT_QUIRK 1
++
++#undef CONFIG_FSL_QIXIS
++#undef BOOT_TARGET_DEVICES
++
++/*Removing dhcp from boot targets*/
++#define BOOT_TARGET_DEVICES(func) \
++    func(USB, usb, 0) \
++    func(MMC, mmc, 1) \
++
++/* VID */
++#define I2C_MUX_CH_VOL_MONITOR		0x0 /* unused */
++#define I2C_VOL_MONITOR_ADDR		0x4F
++#define CONFIG_VID_FLS_ENV		"lx2160au26z_vdd_mv"
++#define CONFIG_VID
++
++/* The lowest and highest voltage allowed */
++#define VDD_MV_MIN			775
++#define VDD_MV_MAX			855
++
++/* PM Bus commands code for LTC4677 */
++#define PMBUS_CMD_PAGE                  0x0
++#define PMBUS_CMD_READ_VOUT             0x8B
++#define PMBUS_CMD_PAGE_PLUS_WRITE       0x05
++#define PMBUS_CMD_VOUT_COMMAND          0x21
++#define PWM_CHANNEL0                    0xff
++
++#define CONFIG_VOL_MONITOR_LTC3882_SET
++#define CONFIG_VOL_MONITOR_LTC3882_READ
++
++/* MAC/PHY configuration */
++#if defined(CONFIG_FSL_MC_ENET)
++#define CONFIG_MII
++#define CONFIG_ETHPRIME         "DPMAC17@rgmii-id"
++#define RGMII_PHY_ADDR1         0x01
++#endif
++
++/* Initial environment variables */
++#define CONFIG_EXTRA_ENV_SETTINGS		\
++	EXTRA_ENV_SETTINGS			\
++	"lx2160au26z_vdd_mv=825\0"		\
++	"BOARD=lx2160au26z\0"			\
++	"xspi_bootcmd=echo Trying load from flexspi..;"		\
++		"sf probe 0:0 && sf read $load_addr "		\
++		"$kernel_start $kernel_size ; env exists secureboot &&"	\
++		"sf read $kernelheader_addr_r $kernelheader_start "	\
++		"$kernelheader_size && esbc_validate ${kernelheader_addr_r}; "\
++		" bootm $load_addr\0"			\
++	"sd_bootcmd=echo Trying load from sd card..;"		\
++		"mmcinfo; mmc read $load_addr "			\
++		"$kernel_addr_sd $kernel_size_sd ;"		\
++		"env exists secureboot && mmc read $kernelheader_addr_r "\
++		"$kernelhdr_addr_sd $kernelhdr_size_sd "	\
++		" && esbc_validate ${kernelheader_addr_r};"	\
++		"bootm $load_addr\0"
++
++#include <asm/fsl_secure_boot.h>
++
++#endif /* __LX2_U26Z_H */
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/configs/lx2162au26z_tfa_defconfig
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/configs/lx2162au26z_tfa_defconfig
+@@ -0,0 +1,95 @@
++CONFIG_ARM=y
++CONFIG_TARGET_LX2162AU26Z=y
++CONFIG_TFABOOT=y
++CONFIG_SYS_TEXT_BASE=0x82000000
++CONFIG_SYS_MALLOC_F_LEN=0x6000
++# CONFIG_EMC2305 is not set
++CONFIG_FSPI_AHB_EN_4BYTE=y
++CONFIG_NR_DRAM_BANKS=3
++CONFIG_ARMV8_SEC_FIRMWARE_SUPPORT=y
++CONFIG_SEC_FIRMWARE_ARMV8_PSCI=y
++# CONFIG_AHCI is not set
++# CONFIG_SCSI is not set
++# CONFIG_LIBATA is not set
++# CONFIG_SCSI_AHCI is not set
++CONFIG_FIT_VERBOSE=y
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_OF_STDOUT_VIA_ALIAS=y
++CONFIG_BOOTDELAY=4
++CONFIG_USE_BOOTARGS=y
++CONFIG_BOOTARGS="console=ttyAMA0,115200 root=/dev/ram0 earlycon=pl011,mmio32,0x21c0000 ramdisk_size=0x2000000 pci=pcie_bus_perf"
++# CONFIG_USE_BOOTCOMMAND is not set
++
++CONFIG_LOGLEVEL=11
++CONFIG_SPL_LOGLEVEL=11
++CONFIG_DISPLAY_CPUINFO=y
++CONFIG_DISPLAY_BOARDINFO=y
++CONFIG_DISPLAY_BOARDINFO_LATE=y
++
++CONFIG_CMD_GREPENV=y
++# CONFIG_CMD_EEPROM is not set
++CONFIG_CMD_GPT=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_SF=y
++# CONFIG_CMD_SCSI is not set
++# CONFIG_CMD_USB is not set
++CONFIG_CMD_CACHE=y
++CONFIG_MP=y
++CONFIG_OF_CONTROL=y
++CONFIG_OF_BOARD_FIXUP=y
++CONFIG_DEFAULT_DEVICE_TREE="fsl-lx2162a-u26z"
++CONFIG_ENV_IS_IN_MMC=y
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_DM=y
++# CONFIG_SATA_CEVA is not set
++CONFIG_CONS_INDEX=0
++CONFIG_FSL_CAAM=y
++CONFIG_DM_GPIO=y
++CONFIG_DM_I2C=y
++CONFIG_I2C_SET_DEFAULT_BUS_NUM=y
++CONFIG_I2C_DEFAULT_BUS_NUMBER=0
++CONFIG_DM_MMC=y
++CONFIG_FSL_ESDHC=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH=y
++CONFIG_SPI_FLASH_MICRON=y
++CONFIG_SPI_FLASH_STMICRO=y
++# CONFIG_SPI_FLASH_USE_4K_SECTORS is not set
++# CONFIG_PHYLIB is not set
++# CONFIG_PHY_AQUANTIA is not set
++# CONFIG_PHY_ATHEROS is not set
++# CONFIG_PHY_CORTINA is not set
++# CONFIG_PHY_INPHI is not set
++CONFIG_E1000=y
++CONFIG_NETDEVICES=y
++# CONFIG_PHY_GIGE is not set
++CONFIG_CMD_NET=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_PXE=y
++# CONFIG_CMD_MII is not set
++CONFIG_CMD_DHCP=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_EXT2=y
++CONFIG_PCI=y
++CONFIG_DM_PCI=y
++CONFIG_DM_PCI_COMPAT=y
++CONFIG_PCIE_LAYERSCAPE_GEN4=y
++CONFIG_PCIE_LAYERSCAPE=y
++# CONFIG_DM_RTC is not set
++# CONFIG_RTC_PCF2127 is not set
++# CONFIG_DM_SCSI is not set
++CONFIG_DM_SERIAL=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_NXP_FSPI=y
++# CONFIG_USB is not set
++# CONFIG_DM_USB is not set
++# CONFIG_USB_XHCI_HCD is not set
++# CONFIG_USB_XHCI_DWC3 is not set
++CONFIG_NET=y
++CONFIG_EFI_LOADER_BOUNCE_BUFFER=y
++CONFIG_HUSH_PARSER=y
++CONFIG_GIC_V3_ITS=y
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/lx2160a.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/board/freescale/lx2160a/lx2160a.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/board/freescale/lx2160a/lx2160a.c
+@@ -286,8 +286,8 @@ int esdhc_status_fixup(void *blob, const
+ #if defined(CONFIG_TARGET_LX2160AQDS) || defined(CONFIG_TARGET_LX2162AQDS)
+ 	/* Enable esdhc and dspi DT nodes based on RCW fields */
+ 	esdhc_dspi_status_fixup(blob);
+-#elif defined(CONFIG_TARGET_LX2160AYRK)
+-	/* Leave things as is for YRK */
++#elif defined(CONFIG_TARGET_LX2160AYRK) || defined(CONFIG_TARGET_LX2162AU26Z)
++	/* Leave things as is for YRK  and U26Z*/
+ #else
+ 	/* Enable both esdhc DT nodes for LX2160ARDB */
+ 	do_fixup_by_compat(blob, compat, "status", "okay",
+@@ -383,6 +383,8 @@ int checkboard(void)
+ 	printf("Board: %s-QDS, ", buf);
+ #elif defined(CONFIG_TARGET_LX2160AYRK)
+ 	printf("Board: %s-YRK, ", buf);
++#elif defined(CONFIG_TARGET_LX2162AU26Z)
++	printf("Board: %s-U26Z, ", buf);
+ #elif defined(CONFIG_TARGET_LX2160ARDB)
+ 	printf("Board: %s-RDB, ", buf);
+ #endif
+@@ -428,7 +430,7 @@ int checkboard(void)
+ 	puts("SERDES1 Reference: Clock1 = 161.13MHz Clock2 = 161.13MHz\n");
+ 	puts("SERDES2 Reference: Clock1 = 100MHz Clock2 = 100MHz\n");
+ 	puts("SERDES3 Reference: Clock1 = 100MHz Clock2 = 100MHz\n");
+-#elif defined(CONFIG_TARGET_LX2160AYRK)
++#elif defined(CONFIG_TARGET_LX2160AYRK)  || defined(CONFIG_TARGET_LX2162AU26Z)
+ 	puts("SERDES1 Reference: Clock1 = 161.13MHz\n");
+ 	puts("SERDES2 Reference: Clock1 = 100MHz\n");
+ #else
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z-m.dts
+===================================================================
+--- /dev/null
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z-m.dts
+@@ -0,0 +1,96 @@
++// SPDX-License-Identifier: GPL-2.0+ OR X11
++/*
++ * Solarflare NXP LX2162AU26Z device tree source
++ *
++ * Author:	Priyanka Jain <priyanka.jain@nxp.com>
++ *		Sriram Dash <sriram.dash@nxp.com>
++ *
++ * Copyright 2018 NXP
++ *
++ */
++
++/dts-v1/;
++
++#include "fsl-lx2160a.dtsi"
++
++/ {
++	model = "Xilinx NXP Layerscape LX2162AU26Z Board";
++	compatible = "fsl,lx2160au26z", "fsl,lx2160a";
++
++	aliases {
++		spi0 = &fspi;
++	};
++};
++
++&fspi {
++	bus-num = <0>;
++	status = "okay";
++/*	fspi-has-second-chip; */
++
++	qflash0: mt35xu02gcba@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spi-flash";
++		spi-max-frequency = <20000000>;
++		reg = <0>;
++		/* The following setting enables 1-1-8 (CMD-ADDR-DATA) mode */
++		fspi-rx-bus-width = <8>; /* 8 FSPI Rx lines */
++		fspi-tx-bus-width = <1>; /* 1 FSPI Tx line */
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++			partition@0 {
++				label = "firmware0";
++				reg = <0x0 0x1000000>;
++/*				read-only; */
++				lock;
++			};
++			partition@1000000 {
++				label = "itb0";
++				reg = <0x1000000 0x2800000>;
++			};
++			partition@3800000 {
++				label = "nvm0";
++				reg = <0x3800000 0x0800000>;
++			};
++		};
++	};
++
++	/*
++	 * MCR2[SAMEDEVICEEN] bit is enabled in FlexSPI controller for
++	 * LX2160AYRK.It has the same type of flash slave device
++	 * connected on both A0 and A1. No need to provide node info
++	 * for second flash device.
++	 */
++};
++
++&i2c0 {
++	status = "okay";
++	u-boot,dm-pre-reloc;
++};
++
++&usb0 {
++	status = "okay";
++};
++
++&esdhc0 {
++	status = "okay";
++};
++
++&esdhc1 {
++	status = "okay";
++};
++
++&pcie2 {
++	status = "disabled";
++};
++
++&pcie5 {
++	status = "disabled";
++};
++
++&pcie6 {
++	status = "disabled";
++};
++

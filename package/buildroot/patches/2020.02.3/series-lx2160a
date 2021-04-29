@@ -1,0 +1,14 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+extra_packages.patch
+restool.patch
+suc.patch
+oath.patch
+ceph.patch
+python-ptable.patch
+diagnostics.patch
+soc_version.patch

@@ -1,0 +1,25 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_UBOOT
+	bool "U-Boot bootloader"
+	default "n"
+	depends on (SNIC_NXP)
+	help
+	  This is the U-Boot for NXP
+
+menu "U-Boot options"
+	depends on SNIC_PACKAGE_UBOOT
+
+config SNIC_UBOOT_MINIMAL
+	bool "Minimal U-Boot bootloader for debug"
+	default "y"
+
+config SNIC_UBOOT_LATEST
+	bool "Latest U-Boot bootloader for debug - NOT FOR PRODUCTION"
+	default "n"
+
+endmenu

@@ -1,0 +1,84 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+menu "Debootstrap options"
+	depends on SNIC_ROOTFS_DEBOOTSTRAP
+
+config SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL
+	bool "Use external debootstrap"
+	default "y"
+	help
+	  Download and use debootstrap from source repo
+	  May be needed in non-debian host
+
+choice
+	prompt "Debootstrap Version"
+	depends on SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL
+	default SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL_1.0.123
+	help
+	  Select target debootstrap version.
+
+config SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL_MASTER
+	depends on SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL
+	bool "master"
+
+config SNIC_ROOTFS_DEBOOTSTRAP_EXTERNAL_1.0.123
+	bool "1.0.123"
+
+endchoice
+
+config SNIC_ROOTFS_DEBOOTSTRAP_SWITCHROOT
+	depends on SNIC_PACKAGE_BUILDROOT
+	bool "Enable switchroot flag for initramfs"
+	default "y"
+	help
+	  Flag switchroot from initramfs enabled
+
+config SNIC_ROOTFS_DEBOOTSTRAP_EXTRAS
+	bool "Add board specific packages"
+	default "n"
+	help
+	  Add extra packages for board
+
+config SNIC_ROOTFS_DEBOOTSTRAP_NOROOTPASSWORD
+	depends on SNIC_QEMU
+	bool "Create rootfs with no root password"
+	default "y"
+	help
+	 This avoids having to set a root password by chrooting into
+	 the rootfs image
+
+config SNIC_ROOTFS_DEBOOTSTRAP_ROOTPASSWORD
+	depends on SNIC_QEMU && !SNIC_ROOTFS_DEBOOTSTRAP_NOROOTPASSWORD
+	string "Root Password"
+	default "root"
+	help
+	 Set explicit root password
+
+config SNIC_ROOTFS_DEBOOTSTRAP_ADDGUEST
+	depends on SNIC_QEMU
+	bool "Create guest user with password guest"
+	default "y"
+	help
+	 This avoids having to set a root password by chrooting into
+	 the rootfs image
+
+config SNIC_ROOTFS_CHROOT_TOOLS
+	depends on SNIC_QEMU
+	bool "Add chroot tools"
+	default "y"
+	help
+	 Adds tools for unpacking, manipulating and repacking the rootfs tgz via a chroot
+
+config SNIC_ROOTFS_DEBOOTSRAP_NO_SOURCES
+	bool "Exclude source files from debootstrap rootfs build"
+	default "n"
+	help
+	 This will make the build faster but in the absence of the source file
+	 replicating a build will be harder. GPL licensing typically requires
+	 that the source files are made available to customers on request.
+
+endmenu

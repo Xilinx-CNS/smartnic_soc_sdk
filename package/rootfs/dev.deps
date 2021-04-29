@@ -1,0 +1,1 @@
+build-essential ethtool pciutils libpci-dev git ncurses-term dkms lrzsz etckeeper watchdog python3-pyelftools lsof rsync python3-sortedcontainers

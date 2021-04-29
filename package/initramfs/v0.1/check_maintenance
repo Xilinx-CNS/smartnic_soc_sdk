@@ -1,0 +1,185 @@
+#!/usr/bin/micropython
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+import os, json
+
+maintenance_part="p2"
+rootfs_part="p3"
+
+maintenance_mount="/mnt/maint"
+rootfs_mount="/mnt/rootfs"
+
+maintenance_file="/maintenance/maintenance"
+
+DEBUG=True
+
+def debug(txt):
+    global DEBUG
+    if DEBUG:
+        print("DEBUG: " + txt)
+
+def path_exists(filename):
+    try:
+        status = os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+def file_size(filename):
+    if path_exists(filename):
+        stat = os.stat(filename)
+        return stat[6]
+    return 0
+
+def umount_maintenance():
+    retval = os.system("umount %s" % maintenance_mount)
+    return retval == 0
+
+def umount_rootfs():
+    retval = os.system("umount %s" % rootfs_mount)
+    return retval == 0
+
+def mount_rootfs(rootfs_dev):
+    rootfs_dev=block_dev + rootfs_part
+    if path_exists(rootfs_dev):
+        if not path_exists(rootfs_mount):
+            os.mkdir(rootfs_mount)
+        if path_exists(rootfs_mount):
+            umount_rootfs()
+            os.system("mount %s %s" % (rootfs_dev, rootfs_mount))
+
+def erase_rootfs():
+    if path_exists(rootfs_mount):
+        debug("Erasing " + rootfs_mount + "/*")
+        os.system("rm -rf " + rootfs_mount + "/*")
+
+def populate_rootfs(tgz):
+    if path_exists(tgz) and path_exists(rootfs_mount):
+        cwd = os.getcwd()
+        os.chdir(rootfs_mount)
+        cmdline = "gzip -d -c " + tgz + " | tar -x"
+        debug("Populating " + rootfs_mount + " from " + tgz + "using cmdline = " + cmdline)
+        retval = os.system(cmdline)
+        os.chdir(cwd)
+        return retval == 0
+
+def mount_maintenance(block_dev):
+    retval = False
+    maintenance_dev=block_dev + maintenance_part
+    if path_exists(maintenance_dev):
+        if not path_exists(maintenance_mount):
+            os.mkdir(maintenance_mount)
+        if path_exists(maintenance_mount):
+            umount_maintenance()
+            os.system("mount %s %s" % (maintenance_dev, maintenance_mount))
+            if path_exists(maintenance_mount + maintenance_file):
+                retval = True
+            else:
+                debug("cannot find " + maintenance_mount + maintenance_file)
+        else:
+            debug("mkdir of %s failed" % maintenanace_mount)
+    return retval
+
+
+class maint_obj:
+    def __init__(self, dir, file, block_dev):
+        self.rootfs_dev=block_dev + "p3"
+        self.dir = dir
+        self.file = file
+        self.path = self.dir + self.file
+        self.erase = path_exists(self.path)
+        self.rename = True
+        self.reboot = False
+        self.run = None
+        self.install_rootfs = False
+        self.rootfs_tgz = None
+        with open(self.path,"r") as f:
+          try:
+            maint = json.load(f)
+            if "erase" in maint.keys():
+                 self.erase = maint["erase"] == True
+            if "rename" in maint.keys():
+                 self.rename = maint["rename"] == True
+            if "run" in maint.keys():
+                 self.run = maint["run"]
+            if "reboot" in maint.keys():
+                 self.reboot = maint["reboot"] == True
+            if ("install_rootfs" in maint.keys()) and ("rootfs_tgz" in maint.keys()):
+                 self.install_rootfs = maint["install_rootfs"] == True
+                 self.rootfs_tgz = maint["rootfs_tgz"]
+          except:
+            if file_size(self.path) > 0:
+              debug("json bad from path %s" % self.path)
+              self.erase = False
+              self.rename = False
+              self.reboot = False
+
+    def check_valid(self):
+        secure_file = self.path+'.sec'
+        with open(self.path+'.sec') as f:
+            try:
+                 obj = json.load(f)
+                 if "secure" in obj.keys():
+                     if not obj["secure"] is False:
+                         return True
+            except:
+                debug("secure JSON object invalid")
+        return False
+
+    def do_maintenance(self):
+        if not self.check_valid():
+            debug("Not valid so no maintenance")
+            return
+        debug("self.run = %s" % self.run)
+        if self.install_rootfs:
+            rootfs_tgz_path = self.dir +'/'+self.rootfs_tgz
+            if path_exists(rootfs_tgz_path):
+                debug("installing %s to rootfs" % rootfs_tgz_path)
+                mount_rootfs(self.rootfs_dev)
+                erase_rootfs()
+                populate_rootfs(rootfs_tgz_path)
+                umount_rootfs()
+            else:
+                debug("Unable to find " + rootfs_tgz_path)
+        if self.run:
+            os.chdir(self.dir)
+            os.system("./"+self.run)
+    def finish_maintenance(self):
+        if self.rename and path_exists(self.path):
+            backup = self.path+'.bak'
+            if path_exists(backup):
+                os.unlink(backup)
+            debug("backing up " + self.path + "to " + backup)
+            os.rename(self.path, backup)
+        if self.erase and path_exists(self.path):
+            debug("deleting " + self.path)
+            os.unlink(self.path)
+        if self.reboot:
+            os.system("reboot")
+
+def get_maintenance(block_dev):
+    retval = None
+    if mount_maintenance(block_dev) and path_exists(maintenance_mount+maintenance_file):
+        retval = maint_obj(maintenance_mount, maintenance_file, block_dev)
+    return retval
+
+def maintain(block_dev):
+    maintenance_obj = get_maintenance(block_dev)
+    if not maintenance_obj is None:
+        maintenance_obj.do_maintenance()
+        maintenance_obj.finish_maintenance()
+        print("maintenance completed on " + block_dev)
+    else:
+        print("maintenance not required on " + block_dev)
+    # cleanup
+    umount_maintenance()
+    umount_rootfs()
+
+maintain("/dev/mmcblk1")
+maintain("/dev/mmcblk0")
+
+debug("Check Maintenance has been run")

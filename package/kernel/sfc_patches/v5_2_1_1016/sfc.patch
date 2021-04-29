@@ -1,0 +1,48 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: sfc-v5_2_1_1016/drivers/net/ethernet/sfc/kernel_compat_funcs.sh
+===================================================================
+--- sfc-v5_2_1_1016.orig/drivers/net/ethernet/sfc/kernel_compat_funcs.sh
++++ sfc-v5_2_1_1016/drivers/net/ethernet/sfc/kernel_compat_funcs.sh
+@@ -353,7 +353,13 @@ function test_compile()
+ $makefile_prefix
+ obj-m := test.o
+ EOF
+-    make -rR -C $KPATH M=$dir O=$KOUT ${CC:+CC="$CC"} >$dir/log 2>&1
++#    make -rR -C $KPATH M=$dir O=$KOUT ${CC:+CC="$CC"} >$dir/log 2>&1
++    if [ -z "$CROSS_ARCH" ]; then
++	make -rR -C $KPATH M=$dir ${CC:+CC="$CC"} >$dir/log 2>&1
++    else
++	make -rR -C $KPATH ARCH=$CROSS_ARCH M=$dir ${CC:+CC="$CC"} >$dir/log 2>&1
++    fi
++
+     rc=$?
+ 
+     if [ $efx_verbose = true ]; then
+@@ -471,11 +477,22 @@ done
+ 
+ vmsg "MAKEFLAGS  := $MAKEFLAGS"
+ 
++# set CROSS_ARCH for cross-building
++CROSS_ARCH=
++if [ -z "$ARCH" ] && [ ! -z "$SRCARCH" ]; then
++    CROSS_ARCH=$SRCARCH
++fi
++
+ # resolve KVER and KPATH
+ [ -z "$KVER" ] && [ -z "$KPATH" ] && KVER=`uname -r`
+ [ -z "$KPATH" ] && KPATH=/lib/modules/$KVER/build
+ [ -z "$KOUT" ] && KOUT="$KPATH"
+ 
++# required for cross-builds or we get back X86_64 from read_make_variables as $ARCH is unset at this point
++if [ -z $ARCH ] && [ ! -z $CROSS_ARCH ]; then
++    ARCH=$CROSS_ARCH
++fi
++
+ # Need to set CC explicitly on the kernel make line
+ # Needs to override top-level kernel Makefile setting
+ # Somehow this script does the wrong thing when ccache is used, so disable

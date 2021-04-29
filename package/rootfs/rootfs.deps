@@ -1,0 +1,7 @@
+DEPS+=sudo fakeroot makedev
+
+ifeq ($(SNIC_QEMU),y)
+DEPS+=qemu-user-static
+endif
+
+

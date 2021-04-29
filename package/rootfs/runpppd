@@ -1,0 +1,15 @@
+#! /bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+/usr/bin/dialog --timeout 5 --yesno "Do not run pppd (5 secs to answer):" 0 0
+retval=$?
+echo "retval = $retval"
+if [ ! "X$retval" = "X0" ]; then
+    pppd ttyAMA0 115200 noauth nocrtscts local defaultroute usepeerdns lock passive noipdefault persist
+fi
+echo "Aborting running pppd\n"

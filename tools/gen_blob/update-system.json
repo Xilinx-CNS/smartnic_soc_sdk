@@ -1,0 +1,8 @@
+{
+"update_server": "web",
+"update_server_transport": "https",
+"update_server_user": "root",
+"update_server_port": "443",
+"update_dir": "/u26z/soc/latest/",
+"update_config_file": "update.json"
+}

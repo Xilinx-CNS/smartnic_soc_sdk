@@ -1,0 +1,7 @@
+Index: 0.1/etc/issue.net
+===================================================================
+--- 0.1.orig/etc/issue.net
++++ 0.1/etc/issue.net
+@@ -1 +1 @@
+-Ubuntu 20.04.2 LTS
++SNIC Linux, based on Ubuntu 20.04.2

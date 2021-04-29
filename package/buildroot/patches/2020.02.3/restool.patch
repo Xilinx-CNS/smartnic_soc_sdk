@@ -1,0 +1,63 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+===================================================================
+--- buildroot-2020.02.3-lx2162au26z.orig/package/extraConfig.in
++++ buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+@@ -1 +1,6 @@
++	source "package/suc/Config.in"
+ 	source "package/openvswitch/Config.in"
++	source "package/ceph/Config.in"
++	source "package/python-ptable/Config.in"
++	source "package/oath/Config.in"
++	source "package/restool/Config.in"
+Index: buildroot-2020.02.3-lx2162au26z/package/restool/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/restool/Config.in
+@@ -0,0 +1,12 @@
++config BR2_PACKAGE_RESTOOL
++	bool "restool"
++	default n
++#	depends on BR2_TOOLCHAIN_HAS_THREADS # policycoreutils
++#	depends on BR2_TOOLCHAIN_USES_GLIBC # policycoreutils
++#	depends on BR2_PACKAGE_AUDIT_ARCH_SUPPORTS # policycoreutils
++#	depends on !BR2_STATIC_LIBS # policycoreutils
++#	depends on !BR2_arc # policycoreutils
++	help
++	  Restool is provided by NXP for configuring dpl and dpc
++	  in freescale layerscape SOCs
++
+Index: buildroot-2020.02.3-lx2162au26z/package/restool/restool.mk
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/restool/restool.mk
+@@ -0,0 +1,24 @@
++################################################################################
++#
++# restool
++#
++################################################################################
++
++RESTOOL_VERSION = LSDK-20.04
++RESTOOL_SITE = https://source.codeaurora.org/external/qoriq/qoriq-components/restool
++RESTOOL_SITE_METHOD = git
++RESTOOL_SCRIPT_SYMLINKS = ls-addmux ls-addsw ls-addni ls-listni ls-listmac
++#RESTOOL_CFLAGS += -Icommon
++
++define RESTOOL_BUILD_CMDS
++	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS) -Icommon" -C $(@D)
++endef
++
++define RESTOOL_INSTALL_TARGET_CMDS
++	install -D -m 755 $(@D)/restool $(TARGET_DIR)/usr/local/bin/restool
++	install -D -m 755 $(@D)/scripts/ls-main $(TARGET_DIR)/usr/local/bin/ls-main
++	install -D -m 755 $(@D)/scripts/ls-append-dpl $(TARGET_DIR)/usr/local/bin/ls-append-dpl
++	$(foreach symlink, $(RESTOOL_SCRIPT_SYMLINKS), sh -c "cd $(TARGET_DIR)/usr/local/bin && ln -sf ls-main $(symlink)" ;)
++endef
++
++$(eval $(generic-package))

@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+usage()
+{
+	echo "Usage: boot_maintenance"
+	echo "Boot system into maintenance kernel"
+
+}
+
+
+
+if [ $# -eq 1 ]; then
+	if [ $1 = "--help" ] || [ $1 = "-h" ]; then
+		usage
+		exit 0
+	fi
+fi
+
+if [ $# -ne 0 ]; then
+	echo "Invalid option"
+	usage
+	exit 1
+fi
+
+soc_ctrl_offset=0xb
+i2c_bus=0x48
+dev_id=0x53
+dev_ver=0x01
+
+val=$(i2cget -y 0 $i2c_bus 0)
+if [ $val != $dev_id ]
+then
+    echo "I2C Device id is not correct"
+    exit 1
+fi
+
+val=$(i2cget -y 0 $i2c_bus 1)
+if [ $val != $dev_ver ]
+then
+    echo "I2C Device version is not correct"
+    exit 1
+fi
+
+i2cset -y 0 $i2c_bus $soc_ctrl_offset 0x2 b
+echo "Booting into maintenance kernel"
+reboot

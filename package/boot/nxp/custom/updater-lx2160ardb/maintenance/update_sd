@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+SD_FILE=../data/boot_sd.img
+BS=512
+SD_OFFSET_BLOCK=8
+DEV=/dev/mmcblk0
+if [ ! -e ${DEV} ]; then
+echo "${DEV} does not exist"
+exit 1
+fi
+if [ -r ${SD_FILE} ]; then
+echo "updating SD card"
+dd if=${SD_FILE} of=${DEV} bs=${BS} seek=${SD_OFFSET_BLOCK}
+else
+echo "${SD_FILE} does not exist"
+fi

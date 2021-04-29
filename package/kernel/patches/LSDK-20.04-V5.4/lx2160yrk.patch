@@ -1,0 +1,129 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: linux-LSDK-20.04-V5.4-lx2160ayrk/arch/arm64/boot/dts/freescale/fsl-lx2160a-yrk-m.dts
+===================================================================
+--- /dev/null
++++ linux-LSDK-20.04-V5.4-lx2160ayrk/arch/arm64/boot/dts/freescale/fsl-lx2160a-yrk-m.dts
+@@ -0,0 +1,118 @@
++// SPDX-License-Identifier: (GPL-2.0 OR MIT)
++//
++// Device Tree file for LX2160AYRK
++//
++// Copyright 2019 Solarflare Communications
++
++/dts-v1/;
++
++#include "fsl-lx2160a.dtsi"
++
++/ {
++	model = "Solarflare NXP Layerscape LX2160AYRK Board";
++	compatible = "fsl,lx2160a-yrk", "fsl,lx2160a";
++
++	aliases {
++		crypto = &crypto;
++		serial0 = &uart0;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++};
++
++&crypto {
++	status = "okay";
++};
++
++&esdhc0 {
++	sd-uhs-sdr104;
++	sd-uhs-sdr50;
++	sd-uhs-sdr25;
++	sd-uhs-sdr12;
++	broken-cd;
++	status = "okay";
++};
++
++&i2c0 {
++	status = "okay";
++
++	// TODO LTM4677 @ 0x4F - ltc2978 driver does not yet support this chip.
++	// It does support LTM4676A which is pin compatible, but has a different ID.
++	//
++
++	// TODO MC34VR500 @ 0x08 - no known driver
++};
++
++&fspi {
++	status = "okay";
++
++	mt35xu02gcba0: flash@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spansion,m25p80";
++		m25p,fast-read;
++		spi-max-frequency = <50000000>;
++		reg = <0>;
++		spi-rx-bus-width = <8>;
++		spi-tx-bus-width = <8>;
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++			partition@0 {
++				label = "firmware0";
++				reg = <0x0 0x1000000>;
++				readonly;
++				lock;
++			};
++			partition@1000000 {
++				label = "itb0";
++				reg = <0x1000000 0x2800000>;
++			};
++			partition@3800000 {
++				label = "fs0";
++				reg = <0x3800000 0xc800000>;
++			};
++		};
++	};
++
++	mt35xu02gcba1: flash@1 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spansion,m25p80";
++		m25p,fast-read;
++		spi-max-frequency = <50000000>;
++		reg = <1>;
++		spi-rx-bus-width = <8>;
++		spi-tx-bus-width = <8>;
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++			partition@0 {
++				label = "firmware1";
++				reg = <0x0 0x1000000>;
++				readonly;
++				lock;
++			};
++			partition@1000000 {
++				label = "itb1";
++				reg = <0x1000000 0x2800000>;
++			};
++			partition@3800000 {
++				label = "fs1";
++				reg = <0x3800000 0xc800000>;
++			};
++		};
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&uart1 {
++	status = "okay";
++};

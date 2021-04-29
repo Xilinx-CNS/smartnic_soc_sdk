@@ -1,0 +1,11 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="dpni.0", NAME="fsleth0"
+SUBSYSTEM=="net", ACTION=="add", KERNELS=="dpni.1", NAME="fsleth1"
+SUBSYSTEM=="net", SUBSYSTEMS=="usb",ACTION=="add", NAME="usb0"
+SUBSYSTEM=="net", ACTION=="add", ATTRS{phys_port_name}=="p0if0pf0", NAME="pf0hpf"
+

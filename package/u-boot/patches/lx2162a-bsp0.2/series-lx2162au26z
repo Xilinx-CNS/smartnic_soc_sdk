@@ -1,0 +1,15 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+boot_devices.patch
+bootm.patch
+lx2160ayrk.patch
+lx2162au26z.patch
+reduce-mcmemsize.patch
+adding_suc_commands.patch
+uart2_init.patch
+populate_num_cores_based_on_auxpower.patch
+disabling_dpaa2.patch

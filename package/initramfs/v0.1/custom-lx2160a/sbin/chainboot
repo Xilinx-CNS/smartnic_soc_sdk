@@ -1,0 +1,78 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+if [ ! -d boot ]; then
+  echo "No boot directory - exiting "
+  exit
+fi
+
+if [ ! -r boot/enable_chainboot ]; then
+  echo "No boot/enable_chainboot - exiting "
+  exit
+fi
+
+# change to boot directory
+cd boot
+
+# execute script if present
+if [ -x chainboot.sh ]; then
+ ./chainboot.sh
+ echo "Chainboot returned unexpectedly ..."
+fi
+
+if [ -r bootpart ]; then
+  read BOOTPART < bootpart
+fi
+
+if [ -r dtb ]; then
+  read DTB < dtb
+  KEXEC_OPTS+=--dtb=$DTB
+fi
+
+
+if [ -r kernel ]; then
+  read KERNEL < kernel
+fi
+
+
+if [ -z "$BOOTPART" ]; then
+BOOTPART=mmcblk0p3
+fi
+
+if [ -z "$KERNEL" ]; then
+KERNEL=vmlinuz
+fi
+
+if [ -r cmdline ]; then
+  read CMDLINE < cmdline
+  KEXEC_OPTS+=--command-line="$CMDLINE"
+fi
+
+if [ -r enable_netboot ]; then
+    if [ -r netboot_kernel_url ]; then
+	read URL < netboot_kernel_url
+	NETWORK_KERNEL=/tmp/vmlinuz
+	rm -f $NETWORK_KERNEL
+	curl $URL -o $NETWORK_KERNEL
+	echo "booting kernel from $URL"
+	if [ -r netboot_kernel_cmdline ]; then
+	    read NETBOOT_CMDLINE < netboot_kernel_cmdline
+	    NKEXEC_OPTS+=--command-line="$NETBOOT_CMDLINE"
+	fi
+	kexec -l $NETWORK_KERNEL "$NKEXEC_OPTS"
+	kexec -e
+	echo "loading kernel $KERNEL from $URL with $NKEXEC_OPTS and executing loaded image failed"
+    fi
+fi
+
+
+if [ -r $KERNEL ]; then
+kexec -l $KERNEL "$KEXEC_OPTS"
+kexec -e
+echo "loading kernel $KERNEL with $KEXEC_OPTS and executing loaded image failed"
+fi
+

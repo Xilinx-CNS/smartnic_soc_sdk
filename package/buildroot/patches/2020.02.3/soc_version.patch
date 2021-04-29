@@ -1,0 +1,49 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+===================================================================
+--- buildroot-2020.02.3-lx2162au26z.orig/package/extraConfig.in
++++ buildroot-2020.02.3-lx2162au26z/package/extraConfig.in
+@@ -5,3 +5,4 @@
+ 	source "package/oath/Config.in"
+ 	source "package/restool/Config.in"
+ 	source "package/diagnostics/Config.in"
++	source "package/soc_version/Config.in"
+Index: buildroot-2020.02.3-lx2162au26z/package/soc_version/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/soc_version/Config.in
+@@ -0,0 +1,5 @@
++config BR2_PACKAGE_SOC_VERSION
++	bool "soc_version"
++	default y
++	help
++	  SoC version reporting to SuC
+Index: buildroot-2020.02.3-lx2162au26z/package/soc_version/soc_version.mk
+===================================================================
+--- /dev/null
++++ buildroot-2020.02.3-lx2162au26z/package/soc_version/soc_version.mk
+@@ -0,0 +1,19 @@
++###############################################################################
++#
++# soc_version
++#
++###############################################################################
++
++SOC_VERSION_VERSION = 0.1
++SOC_VERSION_SITE = $(TOPDIR)/../../../../package/soc_version
++SOC_VERSION_SITE_METHOD = local
++
++define SOC_VERSION_BUILD_CMDS
++	$(TARGET_CONFIGURE_OPTS) $(MAKE) CFLAGS="$(TARGET_CFLAGS)" -C $(@D)
++endef
++
++define SOC_VERSION_INSTALL_TARGET_CMDS
++	install -D -m 755 $(@D)/soc_version $(TARGET_DIR)/usr/bin/soc_version
++endef
++
++$(eval $(generic-package))

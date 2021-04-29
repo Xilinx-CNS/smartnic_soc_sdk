@@ -1,0 +1,21 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+
+config SNIC_PACKAGE_FIRMWARE
+	bool "Build firmware"
+	depends on SNIC_NXP
+	default "y"
+	help
+	 This is a help example.
+
+menu "Qoriq Options"
+	depends on SNIC_PACKAGE_FIRMWARE && SNIC_NXP
+source package/firmware/nxp/Config.in
+endmenu
+
+

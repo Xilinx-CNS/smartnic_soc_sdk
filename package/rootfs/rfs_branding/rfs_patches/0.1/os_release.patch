@@ -1,0 +1,27 @@
+Index: 0.1/usr/lib/os-release
+===================================================================
+--- 0.1.orig/usr/lib/os-release
++++ 0.1/usr/lib/os-release
+@@ -1,12 +1,12 @@
+-NAME="Ubuntu"
+-VERSION="20.04.2 LTS (Focal Fossa)"
+-ID=ubuntu
++NAME="SNIC Linux"
++VERSION="TEMP_VERSION"
++ID=sniclinux
+ ID_LIKE=debian
+-PRETTY_NAME="Ubuntu 20.04.2 LTS"
+-VERSION_ID="20.04"
+-HOME_URL="https://www.ubuntu.com/"
+-SUPPORT_URL="https://help.ubuntu.com/"
+-BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+-PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+-VERSION_CODENAME=focal
++PRETTY_NAME="SNIC Linux, based on Ubuntu 20.04.2 LTS"
++VERSION_ID="TEMP_VERSION"
++HOME_URL="https://github.com/Xilinx-CNS/smartnic-abuilder"
++SUPPORT_URL="https://www.xilinx.com/support.html"
++BUG_REPORT_URL="https://github.com/Xilinx-CNS/smartnic-abuilder"
++PRIVACY_POLICY_URL="https://github.com/Xilinx-CNS/smartnic-abuilder"
++VERSION_CODENAME=SN1000
+ UBUNTU_CODENAME=focal

@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FLASH_ERASE=`which flash_erase`
+MTD=/dev/mtd1
+BS=512
+ITB_FILE=$1
+let ITB_OFFSET=16*1024*1024
+let ITB_SKIP=${ITB_OFFSET}/${BS}
+if [ ! -x ${FLASH_ERASE} ]; then
+echo "No ${FLASH_ERASE} found"
+exit 1
+fi
+if [ ! -e ${MTD} ]; then
+echo "No ${MTD} found"
+exit 1
+fi
+if [ -r ${ITB_FILE} ]; then
+flash_erase ${MTD} 0 0
+echo "Updating kernel region of NOR with ${ITB_FILE}"
+dd if=${ITB_FILE} of=${MTD} bs=${BS} skip=${ITB_SKIP}
+else
+echo "${ITB_FILE} does not exist"
+fi

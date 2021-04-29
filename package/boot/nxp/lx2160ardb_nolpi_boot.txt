@@ -1,0 +1,11 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+echo Setting bootargs for root=/dev/ROOT
+setenv bootargs "console=ttyAMA0,115200 root=/dev/ROOT earlycon=pl011,mmio32,0x21c0000 default_hugepages=1024m hugepagesz=1024m hugepages=2 pci=pcie_bus_perf irqchip.gicv3_nolpi=1 ${bootargs_extra}"
+echo Loading kernel from mmc device PART
+ext2load mmc PART 0xa0000000 boot/ITB
+bootm 0xa0000000

@@ -1,0 +1,73 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+choice
+	prompt "Distro Version"
+	depends on SNIC_ROOTFS_RPM
+	default SNIC_ROOTFS_RPM_FEDORA29
+	help
+	  Select target distro.
+
+config SNIC_ROOTFS_RPM_FEDORA28
+	depends on SNIC_ROOTFS_RPM
+	bool "Fedora 28"
+
+config SNIC_ROOTFS_RPM_FEDORA29
+	depends on SNIC_ROOTFS_RPM
+	bool "Fedora 29"
+
+endchoice
+
+config SNIC_ROOTFS_RPM_MODULES
+	depends on SNIC_ROOTFS_RPM
+	bool "Install current kernel modules"
+	default "n"
+	help
+	 This option sets your rootfs to use the modules
+	  created for the current kernel
+
+config SNIC_ROOTFS_RPM_KERNEL
+	depends on SNIC_ROOTFS_RPM
+	bool "Install current kernel to rootfs"
+	default "n"
+	help
+	  Add current kernel boot image to rootfs
+
+config SNIC_ROOTFS_RPM_SWITCHROOT
+	depends on SNIC_ROOTFS_RPM
+	bool "Enable switchroot flag for initramfs"
+	default "n"
+	help
+	  Flag switchroot from initramfs enabled
+
+config SNIC_ROOTFS_RPM_EXTRAS
+	depends on SNIC_ROOTFS_RPM
+	bool "Add board specific packages"
+	default "n"
+	help
+	  Add extra packages for board
+
+config SNIC_ROOTFS_RPM_NOROOTPASSWORD
+	depends on SNIC_ROOTFS_RPM && SNIC_QEMU
+	bool "Create rootfs with no root password"
+	default "y"
+	help
+	 This avoids having to set a root password by chrooting into
+	 the rootfs image
+
+config SNIC_ROOTFS_RPM_DEVEL
+	depends on SNIC_ROOTFS_RPM
+	bool "Add development packages to rootfs"
+	default "n"
+	help
+	 Adds develpment packages
+
+config SNIC_ROOTFS_RPM_DEVEL_PCI
+	depends on SNIC_ROOTFS_RPM_DEVEL
+	bool "Add PCI development packages to rootfs"
+	default "n"
+	help
+	 Adds develpment packages suitable for PCI

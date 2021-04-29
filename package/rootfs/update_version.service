@@ -1,0 +1,19 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+[Unit]
+Description=Update Root FS version to SUC
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=on-failure
+User=root
+ExecStart=/sbin/update_version
+
+[Install]
+WantedBy=multi-user.target

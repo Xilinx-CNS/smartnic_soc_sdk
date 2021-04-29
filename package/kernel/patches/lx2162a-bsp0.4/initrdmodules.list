@@ -1,0 +1,5 @@
+kernel/drivers/net/mdio.ko
+kernel/drivers/net/ethernet/sfc/virtual_bus.ko
+kernel/drivers/net/ethernet/sfc/sfc.ko
+kernel/drivers/net/ethernet/sfc/sfc_driverlink.ko
+updates/sfc_ef100.ko

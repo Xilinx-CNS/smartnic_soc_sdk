@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+DEV=/dev/$1
+
+# size in GB
+SIZE=$2
+
+EFI_START=68MiB
+#EFI_END=88MiB
+EFI_END=168MiB
+BOOT_END=2000MiB
+
+case ${SIZE} in
+    8)
+    # 1G scratch
+    ROOTFS_END=7000MiB
+    ;;
+    16)
+    # 4G scratch
+    ROOTFS_END=12000MiB
+    ;;
+    32)
+    # 8G scratch
+    ROOTFS_END=24000MiB
+    ;;
+    64)
+    # 10G scratch
+    ROOTFS_END=54000MiB
+    ;;
+    128)
+    # 10G scratch
+    ROOTFS_END=127000MiB
+    ;;
+    256)
+    # 10G scratch
+    ROOTFS_END=2550000MiB
+    ;;
+    *)
+    echo "No supported size specified"
+    exit 1
+    ;;
+esac
+
+if [ ! -b ${DEV} ]; then
+echo "Block device ${DEV} not present"
+exit 1
+fi
+
+#devsize=$[ `fdisk -ls ${DEV}` / 1000000 ]
+#if [ ${devsize} -ge 7 ] ; then
+#    echo "SD card: ${devsize} GB"
+#else
+#    echo "the size of SD disk is too small: ${devsize}"
+#    exit 1
+#fi
+
+echo "This is a partition creator fo an 8G SD card as ${DEV}"
+echo "BIG FAT HUGE WARNING"
+echo "It will destroy the contents of the SD card entirely"
+
+set -x
+
+echo "Creating partitions ..."
+umount ${DEV}*
+
+parted -a minimal -s ${DEV} mklabel msdos
+
+# 20MB for EFI partition-1
+parted -a minimal -s ${DEV} mkpart primary fat16 ${EFI_START} ${EFI_END}
+parted -a minimal -s ${DEV}p1 set partition flag "esp" on
+# 1GB for boot partition-2
+parted -a minimal -s ${DEV} mkpart primary ext2 ${EFI_END} ${BOOT_END}
+# most for rootfs partition-3
+parted -a minimal -s ${DEV} mkpart primary ext2 ${BOOT_END} ${ROOTFS_END}
+# rest for rootfs partition-4
+parted -a minimal -s ${DEV} mkpart primary ext2 ${ROOTFS_END} 100%
+
+echo "Formatting partitions ..."
+umount ${DEV}*
+
+mkfs.vfat -n EFI ${DEV}p1
+mkfs.ext4 -F -v -b 4096 -L boot ${DEV}p2
+mkfs.ext4 -F -v -O ^huge_file -b 4096 -L rootfs ${DEV}p3
+mkfs.ext4 -F -v -O ^huge_file -b 4096 -L scratch ${DEV}p4
+
+

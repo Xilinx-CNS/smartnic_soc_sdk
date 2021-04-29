@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FLASH_ERASE=`which flash_erase`
+MTD=/dev/mtd1
+ITB_FILE=../boot/lx2160ayrk_kernel_initramfs.itb
+if [ ! -x ${FLASH_ERASE} ]; then
+echo "No ${FLASH_ERASE} found"
+exit 1
+fi
+if [ ! -e ${MTD} ]; then
+echo "No ${MTD} found"
+exit 1
+fi
+if [ -r ${ITB_FILE} ]; then
+flash_erase ${MTD} 0 0
+echo "Updating fit region of NOR with ${ITB_FILE}"
+dd if=${ITB_FILE} of=${MTD}
+else
+echo "${ITB_FILE} does not exist"
+fi

@@ -1,0 +1,31 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+config SNIC_PACKAGE_FIT
+	bool "FIT (Flattened Image Tree)"
+	depends on SNIC_PACKAGE_UBOOT
+	default "y"
+	select SNIC_PACKAGE_KERNEL
+
+menu "FIT options"
+	depends on SNIC_PACKAGE_FIT
+
+config SNIC_FIT_KERNEL_ONLY
+	bool "Make u-boot kernel/rootfs fit kernel only image"
+	default "y"
+	select SNIC_KERNEL_BOOT
+
+config SNIC_FIT_KERNEL_INITRD
+	bool "Make u-boot kernel/rootfs fit kernel with intrd image"
+	default "n"
+	select SNIC_KERNEL_INITRD
+
+config SNIC_FIT_KERNEL_INITRAMFS
+	bool "Make u-boot kernel/rootfs fit kernel with intramfs image"
+	default "y"
+	select SNIC_KERNEL_INITRD
+
+endmenu

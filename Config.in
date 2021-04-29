@@ -1,0 +1,90 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+#mainmenu "ABuilder Configuration"
+
+config SNIC_HAVE_DOT_CONFIG
+	bool
+	default y
+
+config SNIC_VERSION
+	string
+	default "2010.05"
+
+choice
+prompt "Operating Mode"
+	default SNIC_CUSTOMER
+	help
+	  Select development options.
+
+config SNIC_CUSTOMER
+	bool "Customer Suggested Options"
+	help
+	  Only supported features will be available.
+
+config SNIC_DEVELOPER
+	bool "Developer"
+	help
+	  Used by developers - no support available
+
+endchoice
+
+config SNIC_EXPERIMENTAL
+	bool "Include experimental options"
+	depends on SNIC_DEVELOPER
+	help
+	  Experimental features - no support available
+
+config SNIC_USE_SUBVARIANT
+	depends on SNIC_DEVELOPER
+	bool "Specify a named subvariant"
+	default n
+
+config SNIC_SUBVARIANT
+	depends on SNIC_USE_SUBVARIANT
+	string "Subvariant name"
+	default ""
+
+config SNIC_MAKE_JOBS
+	int "Number of simultaneous jobs a 'make' can launch (max 8)"
+	default 4
+	range 1 8
+	help
+	  Number of jobs allows to run parallel builds.
+
+config SNIC_BUILD_INTREE
+	bool "Build/Distro directories in current tree"
+	default "y"
+	help
+	  Build and distro directories are created in tree. If 'no' is selected,
+	  then build and distro directories shall be generated in the directory
+	  above. This option is available for compatibility with previous release.
+
+config SNIC_BUILD_PRESEED
+	bool "Use Preseed Download directories"
+	default "y"
+	help
+	  Preseed download directories from preseed tgz files
+	  if available
+
+config SNIC_RELEASE_VER
+	string
+	default "0.1"
+	help
+	  Release version
+
+#config SNIC_DEBIAN_PACKAGES
+#	bool "Build Debian packages"
+#	default "n"
+#	help
+#	  Allow Debian packages to be created using a stamp name,
+#	  if defined.
+
+source target/Config.in
+
+source package/Config.in
+
+#endmenu

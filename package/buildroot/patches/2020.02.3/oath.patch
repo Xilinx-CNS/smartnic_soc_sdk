@@ -1,0 +1,91 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: buildroot-2019.08.1-zcu102-light/package/oath/Config.in
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/oath/Config.in
+@@ -0,0 +1,22 @@
++config BR2_PACKAGE_OATH
++	bool "OATH toolkit"
++#	depends on BR2_USE_MMU # fork()
++#	select BR2_PACKAGE_LIBXML2
++	help
++	  OATH Toolkit
++
++	  https://www.nongnu.org/oath-toolkit/
++
++#if BR2_PACKAGE_OATH
++#
++#config BR2_PACKAGE_BIND_SERVER
++#	bool "Install server components"
++#	help
++#	  Install server components (named, lwresd)
++#
++#config BR2_PACKAGE_BIND_TOOLS
++#	bool "Install tools"
++#	help
++#	  Install tools (dig, host, nslookup, nsupdate)
++#
++#endif
+Index: buildroot-2019.08.1-zcu102-light/package/oath/oath.mk
+===================================================================
+--- /dev/null
++++ buildroot-2019.08.1-zcu102-light/package/oath/oath.mk
+@@ -0,0 +1,53 @@
++################################################################################
++#
++# oath
++#
++################################################################################
++
++OATH_VERSION = 2.6.1
++OATH_SITE = http://download.savannah.nongnu.org/releases/oath-toolkit
++OATH_SOURCE = oath-toolkit-$(OATH_VERSION).tar.gz
++
++# bind does not support parallel builds.
++#BIND_MAKE = $(MAKE1)
++OATH_INSTALL_STAGING = YES
++#BIND_CONFIG_SCRIPTS = bind9-config isc-config.sh
++#BIND_LICENSE = MPL-2.0
++#BIND_LICENSE_FILES = COPYRIGHT
++#BIND_CONF_ENV = \
++#	BUILD_CC="$(TARGET_CC)" \
++#	BUILD_CFLAGS="$(TARGET_CFLAGS)"
++#OATH_CONF_OPTS = \
++#	-Wimplicit-int
++#	$(if $(BR2_TOOLCHAIN_HAS_THREADS),--enable-threads,--disable-threads) \
++#	--without-lmdb \
++#	--with-libjson=no \
++#	--with-randomdev=/dev/urandom \
++#	--enable-epoll \
++#	--with-gssapi=no \
++#	--enable-filter-aaaa
++
++OATH_CONF_OPTS = \
++	enable_pskc=no --with-pskc=no
++#	XML2_CONFIG=no
++
++$(eval $(autotools-package))
++
++#define OATH_CONFIGURE_CMDS
++#	cd $(@D) && \
++#	$(TARGET_MAKE_ENV) ./configure --prefix=/usr --sysconfdir=/etc $(TARGET_CONFIGURE_OPTS)
++#endef
++#
++#define OATH_BUILD_CMDS
++#	$(TARGET_MAKE_ENV) $(MAKE) $(TARGET_CONFIGURE_OPTS) -C $(@D)
++#endef
++#
++#define OATH_INSTALL_STAGING_CMDS
++#	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) DESTDIR=$(STAGING_DIR) install
++#endef
++#
++#define OATH_INSTALL_TARGET_CMDS
++#	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) DESTDIR=$(TARGET_DIR) install
++#endef
++#
++#$(eval $(generic-package))

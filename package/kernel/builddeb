@@ -1,0 +1,180 @@
+#! /bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+#
+# Create Debian package
+
+set -e
+
+OPERATION=$1
+KERNVER=$2
+ARCHITECTURE=$3
+
+create_package () {
+	local pname="$1" pdir="$2" arch="$3"
+
+	if [ -z $arch ] ; then arch=all ; fi
+
+	cp $pdir/DEBIAN/copyright "$pdir/usr/share/doc/$pname/"
+	cp $pdir/DEBIAN/changelog "$pdir/usr/share/doc/$pname/changelog.Debian"
+	cp $pdir/DEBIAN/changelog "$pdir/../"
+	cp $pdir/DEBIAN/control   "$pdir/../"
+
+	gzip -9 "$pdir/usr/share/doc/$pname/changelog.Debian"
+	sh -c "cd '$pdir'; find . -type f ! -path './DEBIAN/*' -printf '%P\0' \
+		| xargs -r0 md5sum > DEBIAN/md5sums"
+
+	# Fix ownership and permissions
+	fakeroot chown -R root:root "$pdir"
+	fakeroot chmod -R go-w "$pdir"
+
+	# Create the package
+	cd "$pdir"/../..
+	dpkg-gencontrol -isp -p"$pname" -P"$pdir" -DArchitecture="$arch"
+	cp "$pdir"/../files "$pdir"/DEBIAN
+	dpkg --build "$pdir" ..
+}
+
+mcp () {
+	[ -f "$1" ] && cp -R "$1" "$2" || echo "W: $1 does not exist."
+}
+
+mdcp () {
+	[ -d "$1" ] && cp -R "$1" "$2" || echo "W: $1 does not exist."
+}
+
+#. ../../Makefile.in
+
+# Some variables and settings used throughout the script
+tmpdir="$BUILDDIR/kernel-deb/debian/tmp"
+# XXX We get this information from debian/ directory
+# In case it does not exist, build system will use this one.
+variant=$(echo $VARIANT | tr '[A-Z]' '[a-z]')
+board=$(echo $BOARD | tr '[A-Z]' '[a-z]')
+packagename=linux-$KERNVER-$board$variant-$OPERATION-prod
+version=2011.01
+revision=1
+packageversion=$version-$revision
+
+# Setup directory structure
+rm -rf "$tmpdir"
+mkdir -p "$tmpdir/DEBIAN" "$tmpdir/usr/share/$packagename" "$tmpdir/usr/share/doc/$packagename"
+
+# Install
+case $OPERATION in
+  zimageboot)
+	mcp $BUILDDIR/kernel/zImageBoot "$tmpdir/usr/share/$packagename/zImage"
+	mcp $BUILDDIR/kernel/uImageBoot "$tmpdir/usr/share/$packagename/uImage"
+  ;;
+  zimageinitrd)
+	mcp $BUILDDIR/kernel/zImageInitrd "$tmpdir/usr/share/$packagename/"
+	mcp $BUILDDIR/kernel/uImageInitrd "$tmpdir/usr/share/$packagename/"
+  ;;
+  modtgz)
+	mcp $BUILDDIR/kernel/modules.tgz "$tmpdir/usr/share/$packagename/"
+  ;;
+  modules)
+	mdcp $BUILDDIR/kernel/modules/lib "$tmpdir/"
+	rm -rf "$tmpdir/usr/share/$packagename" "$tmpdir/usr/share/doc/$packagename"
+	packagename=$(echo $packagename | sed 's/\(.*\)-prod/\1/')
+	mkdir -p "$tmpdir/usr/share/$packagename" "$tmpdir/usr/share/doc/$packagename"
+  ;;
+esac
+#cp -R $BUILDDIR/kernel/zImage*     "$tmpdir/usr/share/$packagename"
+#cp -R $BUILDDIR/kernel/modules.tgz "$tmpdir/usr/share/$packagename"
+
+# Install maintainer scripts
+# Currently we do not support in field upgrades - so no need for maint scripts
+
+# Try to determine maintainer and email values
+if [ -n "$DEBEMAIL" ]; then
+       email=$DEBEMAIL
+elif [ -n "$EMAIL" ]; then
+       email=$EMAIL
+else
+       email=$(id -nu)@$(hostname -f)
+fi
+if [ -n "$DEBFULLNAME" ]; then
+       name=$DEBFULLNAME
+elif [ -n "$NAME" ]; then
+       name=$NAME
+else
+       name="Anonymous"
+fi
+maintainer="$name <$email>"
+
+if [ -d $PACKAGEDIR/kernel/debian ] ; then
+# Generate a control file
+cat <<EOF > $PACKAGEDIR/kernel/debian/control
+Source: linux-balloon
+Section: admin
+Priority: optional
+Maintainer: $maintainer
+Standards-Version: 3.8.4
+Homepage: http://balloonboard.org/trac/browser/balloon/branches/menuconfig2/package/kernel
+
+Package: $packagename
+Architecture: all
+Description: Linux kernel for balloon3, version $KERNVER
+ This package contains the linux kernel for balloon3, version: $KERNVER.
+EOF
+	cp $PACKAGEDIR/kernel/debian/* $tmpdir/DEBIAN
+else
+# Generate a simple changelog template
+cat <<EOF > $tmpdir/DEBIAN/changelog
+linux-balloon ($packageversion) development; urgency=low
+
+  * Custom built linux kernel for balloon3.
+
+ -- $maintainer  $(date -R)
+EOF
+
+# Generate copyright file
+cat <<EOF > $tmpdir/DEBIAN/copyright
+This is a packacked upstream version of the Linux kernel for balloon3.
+
+The sources may be found at most Linux ftp sites, including:
+  ftp://ftp.kernel.org/pub/linux/kernel
+
+The git repository for mainline kernel development is at:
+  git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
+
+Copyright: 1991 - 2011 Linus Torvalds and others.
+
+Extra patches for balloon3 might be found at:
+  http://balloonboard.org/trac/browser/balloon/branches/menuconfig2/package/kernel
+
+Copyright: Toby Churchill Ltd and others.
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; version 2 dated June, 1991.
+
+On Debian GNU/Linux systems, the complete text of the GNU General Public
+License version 2 can be found in \`/usr/share/common-licenses/GPL-2'.
+
+EOF
+
+# Generate a control file
+cat <<EOF > $tmpdir/DEBIAN/control
+Source: linux-balloon
+Section: admin
+Priority: optional
+Maintainer: $maintainer
+Standards-Version: 3.8.4
+Homepage: http://balloonboard.org/trac/browser/balloon/branches/menuconfig2/package/kernel
+
+Package: $packagename
+Architecture: all
+Description: Linux kernel for balloon3, version $KERNVER
+ This package contains the linux kernel for balloon3, version: $KERNVER.
+EOF
+fi
+
+create_package "$packagename" "$tmpdir" "$ARCHITECTURE"
+
+exit 0

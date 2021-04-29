@@ -1,0 +1,85 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+/bin/mount -t proc proc /proc
+/bin/mount -t sysfs sysfs /sys
+
+# added from buildroot 2012.05
+/bin/mount -t devtmpfs devtmpfs /dev
+
+if [ ! -e "/dev/console" ] ; then
+mknod /dev/console c 5 1
+fi
+
+wait_exists() {
+    target=$1
+    i=$2
+    until [ $i -lt 1 ]; do
+        if [ ! -e ${target} ]; then /bin/sleep 1; fi
+        let i-=1
+    done
+}
+
+read_char_timeout5() {
+	old=$(stty -g)
+	stty raw -echo min 0 time 50
+	eval "$1=\$(dd bs=1 count=1 2>/dev/null)"
+	stty $old
+}
+
+try_switchroot() {
+    rootdev=$1
+    if [ -e "${rootdev}" ] ; then
+      fstype=$2
+      rootmnt="/mnt"
+      mkdir -p ${rootmnt}
+      wait_exists ${rootdev} 5
+      /bin/mount -t ${fstype} ${rootdev} ${rootmnt}
+      init="/sbin/init"
+      if [ -r "${rootmnt}/boot/enable_switchroot" ]; then
+	echo "Press any key to abort switch_root. 5 seconds to respond..."
+	read_char_timeout5 answer
+	if [ "X$answer" = "X" ] ; then
+	    if [ -r "${rootmnt}/boot/enable_switchroot_oneshot" ]; then
+		    echo "removing switch_root"
+		    rm ${rootmnt}/boot/enable_switchroot
+	    fi
+                exec /sbin/switch_root ${rootmnt} ${init}
+        echo "switch_root returned unexpectedly"
+        fi
+      fi
+    /bin/umount ${rootmnt}
+    fi
+}
+
+try_rwfs() {
+    mtd=$1
+    if [ -e "${mtd}" ] ; then
+      rwfsmount="/mnt/rwfs"
+      mkdir -p ${rwfsmount}
+      wait_exists ${mtd} 5
+      /bin/mount -t jffs2 ${mtd} ${rwfsmount}
+      if [ -x "${rwfsmount}/init" ] ; then
+	echo "Press any key to abort executing ${rwfsmount}/init. 5 seconds to respond..."
+	read_char_timeout5 answer
+	if [ "X$answer" = "X" ] ; then
+          ${rwfsmount}/init
+        fi
+      fi
+    fi
+}
+
+try_switchroot /dev/mtdblock2 jffs2
+
+try_switchroot /dev/mmcblk0p4 auto
+
+try_switchroot /dev/mmcblk0p3 auto
+
+try_rwfs /dev/mtdblock2
+
+exec /sbin/init

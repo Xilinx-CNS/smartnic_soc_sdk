@@ -1,0 +1,1 @@
+libnuma-dev meson ninja-build libpcap-dev python git

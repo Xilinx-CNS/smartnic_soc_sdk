@@ -1,0 +1,221 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+Index: linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/Makefile
+===================================================================
+--- linux-lx2162a-bsp0.1-lx2162au26z.orig/arch/arm64/boot/dts/freescale/Makefile
++++ linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/Makefile
+@@ -49,6 +49,8 @@ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-rdb.dtb
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-yrk.dtb
+ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2162a-qds.dtb
++dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2162a-u26z.dtb
++dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2162a-u26z-m.dtb
+ 
+ dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk.dtb imx8mm-evk-rpmsg.dtb imx8mm-evk-rm67191.dtb \
+ 			  imx8mm-ddr4-evk.dtb imx8mm-evk-root.dtb imx8mm-evk-inmate.dtb \
+Index: linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z.dts
+===================================================================
+--- /dev/null
++++ linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z.dts
+@@ -0,0 +1,78 @@
++// SPDX-License-Identifier: (GPL-2.0 OR MIT)
++//
++// Device Tree file for LX2162AU26Z
++//
++// Copyright 2020 NXP
++
++/dts-v1/;
++
++#include "fsl-lx2160a.dtsi"
++
++/ {
++        model = "Xilinx NXP Layerscape LX2162AU26Z Board";
++        compatible = "nxp,lx2162a-qds", "fsl,lx2160a";
++
++        aliases {
++                crypto = &crypto;
++                serial0 = &uart0;
++        };
++
++        chosen {
++                stdout-path = "serial0:115200n8";
++        };
++
++};
++
++&crypto {
++        status = "okay";
++};
++
++&esdhc0 {
++        sd-uhs-sdr104;
++        sd-uhs-sdr50;
++        sd-uhs-sdr25;
++        sd-uhs-sdr12;
++        broken-cd;
++        status = "okay";
++};
++
++&esdhc1 {
++        mmc-hs200-1_8v;
++        mmc-hs400-1_8v;
++        bus-width = <8>;
++        non-removable;
++        status = "okay";
++};
++
++&i2c0 {
++        status = "okay";
++};
++
++&uart0 {
++        status = "okay";
++};
++
++&uart1 {
++        status = "okay";
++};
++
++&usb0 {
++        status = "okay";
++};
++
++&emdio1 {
++        status = "okay";
++
++        rgmii_phy1: ethernet-phy@1 {
++                /* RTL8211 PHY - "compatible" property not strictly needed */
++                compatible = "ethernet-phy-id001c.c916";
++                reg = <0x1>;
++        };
++};
++
++/*
++&dpmac17 {
++        phy-handle = <&rgmii_phy1>;
++        phy-connection-type = "rgmii-id";
++};
++*/
+\ No newline at end of file
+Index: linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z-m.dts
+===================================================================
+--- /dev/null
++++ linux-lx2162a-bsp0.1-lx2162au26z/arch/arm64/boot/dts/freescale/fsl-lx2162a-u26z-m.dts
+@@ -0,0 +1,112 @@
++// SPDX-License-Identifier: (GPL-2.0 OR MIT)
++//
++// Device Tree file for LX2162AU26Z
++//
++// Copyright 2020 NXP
++
++/dts-v1/;
++
++#include "fsl-lx2160a.dtsi"
++
++/ {
++        model = "Xilinx NXP Layerscape LX2162AU26Z Board";
++        compatible = "nxp,lx2162a-qds", "fsl,lx2160a";
++
++        aliases {
++                crypto = &crypto;
++                serial0 = &uart0;
++        };
++
++        chosen {
++                stdout-path = "serial0:115200n8";
++        };
++
++};
++
++&crypto {
++        status = "okay";
++};
++
++&esdhc0 {
++        sd-uhs-sdr104;
++        sd-uhs-sdr50;
++        sd-uhs-sdr25;
++        sd-uhs-sdr12;
++        broken-cd;
++        status = "okay";
++};
++
++&esdhc1 {
++        mmc-hs200-1_8v;
++        mmc-hs400-1_8v;
++        bus-width = <8>;
++        non-removable;
++        status = "okay";
++};
++
++&fspi {
++        status = "okay";
++
++        mt35xu512aba0: flash@0 {
++                #address-cells = <1>;
++                #size-cells = <1>;
++                compatible = "spansion,m25p80";
++                m25p,fast-read;
++                spi-max-frequency = <50000000>;
++                reg = <0>;
++                spi-rx-bus-width = <8>;
++                spi-tx-bus-width = <8>;
++                partitions {
++                        compatible = "fixed-partitions";
++                        #address-cells = <1>;
++                        #size-cells = <1>;
++                        partition@0 {
++                                label = "firmware0";
++                                reg = <0x0 0x1000000>;
++                                read-only;
++                                lock;
++                        };
++                        partition@1000000 {
++                                label = "itb0";
++                                reg = <0x1000000 0x2800000>;
++                        };
++                        partition@3800000 {
++                                label = "fs0";
++                                reg = <0x3800000 0xc800000>;
++                        };
++                };
++        };
++};
++
++&i2c0 {
++        status = "okay";
++};
++
++&uart0 {
++        status = "okay";
++};
++
++&uart1 {
++        status = "okay";
++};
++
++&usb0 {
++        status = "okay";
++};
++
++&emdio1 {
++        status = "okay";
++
++        rgmii_phy1: ethernet-phy@1 {
++                /* RTL8211 PHY - "compatible" property not strictly needed */
++                compatible = "ethernet-phy-id001c.c916";
++                reg = <0x1>;
++        };
++};
++
++/*
++&dpmac17 {
++        phy-handle = <&rgmii_phy1>;
++        phy-connection-type = "rgmii-id";
++};
++*/
+\ No newline at end of file

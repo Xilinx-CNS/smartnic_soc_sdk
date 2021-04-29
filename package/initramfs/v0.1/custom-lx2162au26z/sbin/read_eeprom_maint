@@ -1,0 +1,230 @@
+#!/usr/bin/python
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+import os, json, re, time, argparse
+
+def debug(txt):
+    global DEBUG
+    if DEBUG:
+        print("DEBUG: " + txt)
+
+
+def mount_devpart(devpart, mountpoint, opt=""):
+    ret = True
+
+    if path_exists(devpart):
+        if not path_exists(mountpoint):
+            os.mkdir(mountpoint)
+        if path_exists(mountpoint):
+            umount_devpart(mountpoint)
+            r, str = run_cmd("mount %s %s %s" % (opt, devpart, mountpoint))
+            debug("Mount dev %s to %s status: %d" % (devpart, mountpoint, r))
+            if ret != 0:
+                print("%s" % str)
+
+    else:
+        ret = False
+
+    return ret
+
+
+def umount_devpart(mountpoint):
+    retval = 1
+    msg = ""
+    retval, msg = run_cmd("umount %s" % mountpoint)
+    return retval == 0
+
+
+def run_cmd(cmd):
+    cmd = "%s 1> /tmp/out 2> /tmp/out1" % cmd
+    debug(cmd)
+    ret = os.system(cmd)
+    if ret != 0:
+        file = "/tmp/out1"
+    else:
+        file = "/tmp/out"
+    f = open(file, "r")
+    ls = f.readlines()
+    str = ""
+    for l in ls:
+        str = str + l
+
+    return ret, str
+
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+
+class eeprom_obj:
+    def __init__(self, mmcidx):
+
+        self.jffs2dir = "/mnt/rwfs"
+        self.romdir = "/mnt/rom/"
+        self.eeprom = "/sys/bus/i2c/devices/0-0050/eeprom"
+        self.blockdev = "/dev/mmcblk%d" % mmcidx
+        self.conf = self.romdir + "eeprom.json"
+        self.reboot_to_maintenance = False
+        # json options
+        self.random = 0
+        self.interface_file = None
+        self.maintenance_boot = None
+        self.remote_server = None
+
+    def parse_json(self):
+        with open(self.conf, "r") as f:
+            try:
+                maint = json.load(f)
+                if "random" in maint.keys():
+                    self.random = maint["random"]
+                if "interface_file" in maint.keys():
+                    self.interface_file = maint["interface_file"]
+                if "maintenance_boot" in maint.keys():
+                    self.maintenance_boot = maint["maintenance_boot"]
+                if "remote_server" in maint.keys():
+                    self.remote_server = maint["remote_server"]
+            except:
+                print("json bad from path %s" % self.json)
+
+    def copy_interface_jffs2(self, infpath):
+
+        cmd = "cp -rf %s %s/interfaces" % (infpath, self.jffs2dir)
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            print(msg)
+            return False
+        return True
+
+    def copy_interface_etc(self, infpath):
+
+        cmd = "cp -rf %s /etc/network/interfaces" % infpath
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            print(msg)
+            return False
+        return True
+
+    def copy_interface(self, infpath):
+
+        if self.copy_interface_etc(infpath):
+            if self.copy_interface_jffs2(infpath):
+                return True
+        return False
+
+    def copy_server_jffs2(self, infpath):
+
+        cmd = "cp -rf %s %s/update-system.json" % (infpath, self.jffs2dir)
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            print(msg)
+            return False
+        return True
+
+    def copy_server_etc(self, infpath):
+
+        cmd = "cp -rf %s /etc/update-system.json" % infpath
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            print(msg)
+            return False
+        return True
+
+
+    def copy_server(self, infpath):
+
+        if self.copy_server_etc(infpath):
+            if self.copy_server_jffs2(infpath):
+                return True
+        return False
+
+    def is_eeprom_present(self):
+        if not path_exists(self.eeprom):
+            print("Error: EEPROM not available")
+            return False
+        return True
+
+    def mount_eeprom(self):
+        if not self.is_eeprom_present():
+            return False
+        cmd = "dd if=%s of=/tmp/eeprom bs=512 count=8 skip=2" % self.eeprom
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            print(msg)
+            print("EEPROM copy to tmp fail")
+            return False
+        cmd = "file /tmp/eeprom"
+        ret, msg = run_cmd(cmd)
+        if "Squashfs filesystem" not in msg:
+            return False
+
+
+        return mount_devpart("/tmp/eeprom", self.romdir, "-t squashfs -o loop")
+
+    def umount_eeprom(self):
+        umount_devpart(self.romdir)
+
+    def is_new_update(self):
+        if not path_exists(self.conf):
+            debug("No json conf file")
+            return False
+        self.parse_json()
+        if self.random != 0:
+            if path_exists("%s/eeprom/%s" % (self.jffs2dir, self.random)):
+               return False
+
+        return True
+
+    def set_update_done(self):
+        cmd  = "mkdir -p %s/eeprom/" % self.jffs2dir
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            debug(msg)
+            debug("set update done fail")
+            return False
+        cmd = "rm -rf %s/eeprom/*" % self.jffs2dir
+        run_cmd(cmd)
+        cmd = "touch %s/eeprom/%s" % (self.jffs2dir, self.random)
+        ret, msg = run_cmd(cmd)
+        if ret != 0:
+            debug("random code flag add fail")
+            debug(msg)
+            return False
+
+        return True
+
+    def do_update(self):
+
+        if self.interface_file:
+            self.copy_interface("%s/%s" % (self.romdir, self.interface_file))
+        if self.remote_server:
+            self.copy_server("%s/%s" % (self.romdir, self.remote_server))
+
+        return True
+
+    def do(self):
+
+        if not self.mount_eeprom():
+            print("Error: No valid partition exist on EEPROM")
+            return False
+        if not self.is_new_update():
+            debug("No new updates")
+            self.umount_eeprom()
+            return True
+        ret = self.do_update()
+        ret = self.set_update_done()
+        self.umount_eeprom()
+
+        return ret
+
+DEBUG = False
+
+obj = eeprom_obj(1)
+obj.do()

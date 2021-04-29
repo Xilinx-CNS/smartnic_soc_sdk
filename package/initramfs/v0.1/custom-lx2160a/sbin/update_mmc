@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FILE=$1
+BS=512
+OFFSET_BLOCK=8
+DEV=$1
+if [ ! -e ${DEV} ]; then
+echo "${DEV} does not exist"
+exit 1
+fi
+if [ -r ${FILE} ]; then
+echo "updating mmc device"
+dd if=${FILE} of=${DEV} bs=${BS} seek=${OFFSET_BLOCK}
+else
+echo "${FILE} does not exist"
+fi

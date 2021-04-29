@@ -1,0 +1,45 @@
+#! /bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+set -e -x
+
+#pass path to the root. Don't let it run without one as it will break your system
+if [ "" = "$1" ] ; then 
+  echo "You need to specify a path to the target rootfs"
+else
+  if [ -e "$1" ] ; then
+    ROOTFS="$1"
+  else 
+    echo "Root of target rootfs: $ROOTFS not found"
+    exit 1
+  fi
+fi
+
+if [ "/" = "${ROOTFS}" ] ; then echo "Refusing to change your build system's files"; exit 1; fi
+
+#Do things that need to be done at 1st stage so that rootfs will boot.
+
+#Set securetty
+#Add modules - e.g. to support USB serial/ethernet console
+
+# specify config to use
+if [ "" = "$2" ] ; then 
+  CONFIG="files"
+fi
+if [ -d "$2" ] ; then
+  CONFIG="$2"
+else
+  echo "Config dir $CONFIG not found"
+fi
+
+echo `pwd`
+#read in settings
+if [ -e config ] ; then
+  . ./config
+fi
+
+	    cp configscript.sh $ROOTFS

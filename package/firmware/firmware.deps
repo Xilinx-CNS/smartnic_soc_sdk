@@ -1,0 +1,9 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+ifeq ($(SNIC_NXP),y)
+DEPS+=tclsh dtc libssl-dev
+endif

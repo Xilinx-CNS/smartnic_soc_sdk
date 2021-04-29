@@ -1,0 +1,22 @@
+This file lists the different componenets of ARM SDK and associated licenses.
+
+Following componenets of ARM SDK are released under GNU General Public License version 2 (GPLv2), included in License-GPLv2.
+- linux Kernel and its componenets
+- U-BOOT
+- BUILDROOT
+- Onload
+- SNIC linux system
+
+Following componenets of ARM SDK are released under BSD 3-clause license, included in License-BSD.
+- NXP firmware
+- soc_version application
+- thermalload appication
+- suc_comms application
+- power_throttle application
+- diagnostics application
+
+The programs included with the SNIC linux system are free software; the exact distribution terms and licenses for each program are described in the individual files in /usr/share/doc/*/copyright.
+
+
+
+  

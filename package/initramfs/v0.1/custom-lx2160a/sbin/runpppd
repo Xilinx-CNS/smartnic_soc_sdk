@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+#mesg n
+#stty -echo
+#exec /usr/sbin/pppd -detach nocrtscts local lock silent lcp-echo-failure 1 lcp-echo-interval 5 192.168.42.2: /dev/ttyAMA0 115200
+/usr/sbin/pppd -detach nocrtscts local lock silent /dev/ttyAMA0 115200

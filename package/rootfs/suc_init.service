@@ -1,0 +1,13 @@
+[Unit]
+Description=SuC init
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+Restart=on-failure
+User=root
+ExecStart=/sbin/suc_init.sh
+
+[Install]
+WantedBy=multi-user.target

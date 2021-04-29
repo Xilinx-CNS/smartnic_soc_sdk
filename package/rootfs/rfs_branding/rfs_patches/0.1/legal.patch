@@ -1,0 +1,15 @@
+Index: 0.1/etc/legal
+===================================================================
+--- 0.1.orig/etc/legal
++++ 0.1/etc/legal
+@@ -1,8 +1,8 @@
+ 
+-The programs included with the Ubuntu system are free software;
++The programs included with the SNIC linux system are free software;
+ the exact distribution terms for each program are described in the
+ individual files in /usr/share/doc/*/copyright.
+ 
+-Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
++SNIC linux comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
+ applicable law.
+ 

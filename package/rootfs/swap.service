@@ -1,0 +1,17 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+[Unit]
+Description=Mount swap partition
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+User=root
+ExecStart=/etc/init.d/swap.sh SIZE
+
+[Install]
+WantedBy=multi-user.target

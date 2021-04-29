@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+FLASH_ERASE=`which flash_erase`
+MTD=/dev/mtd0
+ITB_FILE=../boot/lx2160ardb_kernel_initramfs.itb
+ITB_OFFSET=16777216
+ITB_OFFSET_BS=16384
+BS=1024
+if [ ! -x ${FLASH_ERASE} ]; then
+echo "No ${FLASH_ERASE} found"
+exit 1
+fi
+if [ ! -r ${MTD} ]; then
+echo "No ${MTD} found"
+exit 1
+fi
+if [ -r ${ITB_FILE} ]; then
+flash_erase ${MTD} ${ITB_OFFSET} 0
+echo "Updating kernel region of NOR with ${ITB_FILE}"
+dd if=${ITB_FILE} of=${MTD} bs=${BS} seek=${ITB_OFFSET_BS}
+else
+echo "${ITB_FILE} does not exist"
+fi

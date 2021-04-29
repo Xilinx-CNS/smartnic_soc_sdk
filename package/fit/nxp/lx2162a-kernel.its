@@ -1,0 +1,51 @@
+/*
+ * Copyright 2017 NXP
+ *
+ */
+
+
+/dts-v1/;
+
+/ {
+	description = "arm64 kernel, ramdisk and FDT blob";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "ARM64 Kernel";
+			data = /incbin/("ZIMAGE");
+			
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x80080000>;
+			entry = <0x80080000>;
+			hash@1 {
+				algo = "crc32";
+			};
+		};
+
+		BOARD-dtb {
+			description = "BOARD-dtb";
+			data = /incbin/("DTB");
+			type = "flat_dt";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load = <0x90000000>;
+			hash@1 {
+				algo = "crc32";
+			};
+		};
+	};
+
+	configurations {
+		default = "BOARD";
+		BOARD {
+			description = "config for BOARD kernel only";
+			kernel = "kernel";
+			fdt = "BOARD-dtb";
+		};
+	};
+};

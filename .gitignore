@@ -1,0 +1,5 @@
+build/
+downloads/
+*.o
+.config
+.config.cmd

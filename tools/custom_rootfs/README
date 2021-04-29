@@ -1,0 +1,29 @@
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+
+1. rootfs customisation
+=======================
+
+1.1. rootfs customisation options
+---------------------------------
+
+1.1.1 Installing new packages
+-----------------------------
+    o- Customize package_list.deps file with desired package names
+
+1.1.2 Copying and installing local debian packages
+--------------------------------------------------
+    o- Copy local debian package(s) to folder local_packages/
+    o- To install the package(s), add package name to local_packages/local_packages.deps file
+
+1.2 Steps
+---------
+    o. Copy rootfs.tgz, delivered with SDK release in base directory to customize.
+       Or a base rootfs is available at /proj/mpmc/xfer/u26z/SoC/base_rootfs/ for customization.
+    o. make
+       or
+       make rootfs_BASE_TGZ_NAME=/location_to_rootfs_tgz/rootfs.tgz
