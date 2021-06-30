@@ -1,0 +1,6 @@
+SN1000 Smartnic SoC release images v1.1.0
+boot_mmc1.tgz --> Include, maintenance Linux image, and main rootfs images.
+boot_xspi.img --> maintenance kernel image, required to upgrade if you are using version older than 0.3.0
+boot_xspi_2M.img ---> required to recover SoC in case even maintenance kernel is not responding.
+boot.scr and lx2162au26z_kernel_initramfs.itb --> required for provisioning via USB drive.
+Please follow instructions from user guide to provision SoC on SN1022.

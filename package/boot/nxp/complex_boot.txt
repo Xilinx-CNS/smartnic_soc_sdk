@@ -48,6 +48,10 @@ run xspi_bootcmd;
 fi;
 fi;
 
+if test -e mmc DPART /boot/args.txt; then
+load mmc DPART ${scriptaddr} /boot/args.txt;
+env import -t ${scriptaddr} ${filesize}
+fi;
 
 if test -e mmc KPART /boot/vmlinuz; then
 	if test -e mmc DPART DTB; then
@@ -58,6 +62,8 @@ if test -e mmc KPART /boot/vmlinuz; then
 		load mmc DPART ${fdt_addr_r} DTB;
 		echo Loading /boot/vmlinuz from mmc device KPART;
 		ext2load mmc KPART ${kernel_addr_r} /boot/vmlinuz;
+		setenv defaultboot ${bootargs}
+		setenv bootargs ${bootargs} ${othbootargs}
 		if env exists noinitramfs; then
 			echo "booting WITHOUT initrd.img"
 			booti ${kernel_addr_r} - ${fdt_addr_r};
@@ -70,6 +76,7 @@ if test -e mmc KPART /boot/vmlinuz; then
 				booti ${kernel_addr_r} - ${fdt_addr_r};
 			fi
 		fi
+		setenv bootargs ${defaultboot}
 	else
 		echo No DTB in mmc device DPART
 	fi;

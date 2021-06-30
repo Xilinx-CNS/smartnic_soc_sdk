@@ -131,7 +131,7 @@ def validate_bootfs(rfspath):
 
     errmsg = ""
     if not path_exists(rfspath):
-        errmsg = "Error: %s File not found" % self.rfspath[0]
+        errmsg = "Error: %s File not found" % rfspath
         return False, errmsg
     cmd = "gzip -d -c %s | tar -tv boot/" % rfspath
     ret, str = run_cmd(cmd)

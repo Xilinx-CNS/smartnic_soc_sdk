@@ -256,22 +256,23 @@ $(rootfs_tmp_stamp): $(rootfs_BASE_TGZ) $(soc_thermal_test_IMAGES)
 	@echo "I: Building rootfs $(rootfs_CUSTOM_NAME)"
 	@echo "I: creating rootfs copy for customisation"
 	@cd $(rootfs_TMP); sudo tar xzf ../$(rootfs_TGZ_FILENAME)
-	cp $(rootfs_CONFDIR)/update_version.service $(rootfs_TMP)/etc/systemd/system
+	install -m 644 $(rootfs_CONFDIR)/update_version.service $(rootfs_TMP)/etc/systemd/system
 	cp $(rootfs_CONFDIR)/update_version $(rootfs_TMP)/sbin/
 	chmod +x $(rootfs_TMP)/sbin/update_version
 	cp $(rootfs_CONFDIR)/boot_maintenance $(rootfs_TMP)/sbin/
 	chmod +x $(rootfs_TMP)/sbin/boot_maintenance
-	cp $(rootfs_CONFDIR)/datetime_start.service $(rootfs_TMP)/etc/systemd/system
-	cp $(rootfs_CONFDIR)/datetime_update.service $(rootfs_TMP)/etc/systemd/system
+	cp $(rootfs_CONFDIR)/update-cmdline $(rootfs_TMP)/sbin/
+	install -m 644 $(rootfs_CONFDIR)/datetime_start.service $(rootfs_TMP)/etc/systemd/system
+	install -m 644 $(rootfs_CONFDIR)/datetime_update.service $(rootfs_TMP)/etc/systemd/system
 	cp $(rootfs_CONFDIR)/datetime_update $(rootfs_TMP)/sbin/
 	chmod +x $(rootfs_TMP)/sbin/datetime_update
 	cp $(rootfs_CONFDIR)/upgrade_soc $(rootfs_TMP)/sbin/
 	cp $(rootfs_CONFDIR)/update_maintenance $(rootfs_TMP)/sbin/
-	cp $(rootfs_CONFDIR)/suc_init.service $(rootfs_TMP)/etc/systemd/system
+	install -m 644 $(rootfs_CONFDIR)/suc_init.service $(rootfs_TMP)/etc/systemd/system
 	cp $(rootfs_CONFDIR)/suc_init.sh $(rootfs_TMP)/sbin/
 	chmod +x $(rootfs_TMP)/sbin/suc_init.sh
-	cp $(rootfs_CONFDIR)/swap.service $(rootfs_TMP)/etc/systemd/system
-	cp $(rootfs_CONFDIR)/readeeprom.service $(rootfs_TMP)/etc/systemd/system
+	install -m 644 $(rootfs_CONFDIR)/swap.service $(rootfs_TMP)/etc/systemd/system
+	install -m 644 $(rootfs_CONFDIR)/readeeprom.service $(rootfs_TMP)/etc/systemd/system
 	cp $(rootfs_CONFDIR)/read_eeprom.py $(rootfs_TMP)/usr/sbin/
 ifeq ($(SNIC_ROOTFS_SOC_THERMAL_TEST),y)
 	cp $(soc_thermal_test_BUILDDIR)/soc_sensors $(rootfs_TMP)/sbin/
@@ -451,7 +452,7 @@ ifeq ($(SNIC_ROOTFS_CLEANUP),y)
 # add package cleanup
 	@echo "echo C: removing waste-of-space" >> $(rootfs_TMP)/tmp/dostuff.sh
 ifeq ($(UBUNTU),y)
-	@echo "DEBIAN_FRONTEND=noninteractive apt remove ubuntu-advantage-pro " >> $(rootfs_TMP)/tmp/dostuff.sh
+	@echo "DEBIAN_FRONTEND=noninteractive apt -y remove ubuntu-advantage-* " >> $(rootfs_TMP)/tmp/dostuff.sh
 endif
 ifeq ($(SNIC_ROOTFS_BOARD_CUSTOMISE),y)
 	@echo "sudo rm /$(rootfs_CUSTOMISATION_SCRIPT)" >> $(rootfs_TMP)/tmp/dostuff.sh

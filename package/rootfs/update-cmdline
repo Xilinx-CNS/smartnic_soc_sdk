@@ -1,0 +1,135 @@
+#!/usr/bin/python
+#
+# This file is distributed as part of Xilinx ARM SDK
+#
+# Copyright (c) 2020 - 2021,  Xilinx, Inc.
+# All rights reserved.
+#
+import os, re, time, argparse, sys
+
+
+desc = '''
+Copyright 2020-2021 Xilinx, Inc.
+All rights reserved.
+
+Xilinx Alveo SmartNIC utility to update kernel cmdline on SoC
+
+usage: update-cmdline [-h] [--update UPDATE] [--display]
+
+Utility to update kernel command line arguments for SNIC linux
+'''
+
+
+parser = argparse.ArgumentParser(description=desc, usage=argparse.SUPPRESS, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('--update', help="Amend kernel cmdline argument", dest='update', type = str, nargs=1, default=None)
+parser.add_argument('--display', help=("Print kernel cmdline argument"), dest='disp', default = False, action="store_true")
+
+
+def run_cmd(cmd):
+    cmd = "%s 1> /tmp/out 2> /tmp/out1" % cmd
+    ret = os.system(cmd)
+    if ret != 0:
+        file = "/tmp/out1"
+    else:
+        file = "/tmp/out"
+    f = open(file, "r")
+    ls = f.readlines()
+    str = ""
+    for l in ls:
+        str = str + l
+
+    return ret, str
+
+def mount_devpart(devpart, mountpoint, opt=""):
+    ret = True
+
+    if path_exists(devpart):
+        if not path_exists(mountpoint):
+            os.mkdir(mountpoint)
+        if path_exists(mountpoint):
+            umount_devpart(mountpoint)
+            r, str = run_cmd("mount %s %s %s" % (opt, devpart, mountpoint))
+            if r != 0:
+                print("Error: %s" % str)
+                ret = False
+    else:
+        ret = False
+
+    return ret
+
+def umount_devpart(mountpoint):
+    retval = 1
+    msg = ""
+    retval, msg = run_cmd("umount %s" % mountpoint)
+    return retval == 0
+
+def path_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:  # stat failed
+        return False
+
+class cmdline:
+    def __init__(self, args):
+
+        self.args = args
+        self.maint = "/mnt/maint"
+        self.kernelargs = "/boot/args.txt"
+
+    def update_cmdline(self):
+
+        if len(self.args.update[0]) > 2048:
+            print ("Too long, It should be at most 2048 bytes long")
+
+        with open("%s%s" % (self.maint, self.kernelargs), "w") as f:
+            try:
+                line = f.write("othbootargs=%s" % self.args.update[0])
+            except:
+                print("File read error")
+
+        return
+
+    def display_cmdline(self):
+        # othbootargs=<arguments>
+
+        if not path_exists("%s%s" % (self.maint, self.kernelargs)):
+            print("No kernel command line argument configured")
+            return
+        with open("%s%s" % (self.maint, self.kernelargs), "r") as f:
+            try:
+                line = f.readline(2048 + 12)
+            except:
+                print("File read error")
+
+        if not line.startswith("othbootargs="):
+            cmdargs = null
+
+        cmdargs = line.replace("othbootargs=", "")
+
+        if not cmdargs or cmdargs is "":
+            print("No kernel command line argument configured")
+        else:
+            print("Arguments: %s" % cmdargs)
+
+    def do(self):
+        ret = mount_devpart("/dev/mmcblk1p2", self.maint)
+
+        if not ret:
+            print("Error: Mounting partition failed, could not read/update cmdline arguments")
+            return
+        if args.disp:
+            self.display_cmdline()
+        if args.update:
+            self.update_cmdline()
+
+        umount_devpart(self.maint)
+
+args = parser.parse_args()
+if len(sys.argv) == 1:
+    args = parser.parse_args(['-h', ])
+else:
+    args = parser.parse_args()
+
+cmd = cmdline(args)
+cmd.do()

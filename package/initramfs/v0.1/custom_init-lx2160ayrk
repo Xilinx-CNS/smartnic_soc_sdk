@@ -6,16 +6,6 @@
 # All rights reserved.
 #
 
-/bin/mount -t proc proc /proc
-/bin/mount -t sysfs sysfs /sys
-
-# added from buildroot 2012.05
-/bin/mount -t devtmpfs devtmpfs /dev
-
-if [ ! -e "/dev/console" ] ; then
-mknod /dev/console c 5 1
-fi
-
 wait_exists() {
     target=$1
     i=$2
@@ -57,34 +47,135 @@ try_switchroot() {
     fi
 }
 
-try_rwfs() {
-    mtd=$1
-    if [ -e "${mtd}" ] ; then
-      rwfsmount="/mnt/rwfs"
-      mkdir -p ${rwfsmount}
-      wait_exists ${mtd} 5
-      /bin/mount -t jffs2 ${mtd} ${rwfsmount}
-	if [ $? -ne 0 ]; then
-	/usr/sbin/flash_erase -j /dev/mtd2 0 0
-	/bin/mount -t jffs2 ${mtd} ${rwfsmount}
-	fi
-      if [ -x "${rwfsmount}/init" ] ; then
-	echo "Press any key to abort executing ${rwfsmount}/init. 5 seconds to respond..."
-	read_char_timeout5 answer
-	if [ "X$answer" = "X" ] ; then
-          ${rwfsmount}/init
+#param1: Block device
+#param2: Mount to folder
+mount_squashfs()
+{
+        dev=$1
+        dest=$2
+        if [ ! -e "${dev}" ] ; then
+                return 1
         fi
-      fi
-    fi
+        mkdir -p ${dest}
+        mount -t squashfs ${dev} ${dest}
+
+        if [ $? -ne 0 ] ; then
+                echo "Error: mount ${dev} fail as squashfs"
+                return 2
+        fi
+        return 0
+}
+#param1: Block device
+#param2: Mount to folder
+mount_jffs2()
+{
+        dev=${1}
+        dest=${2}
+	mtdchar=${3}
+        if [ ! -e "${dev}" ] ; then
+                return 3
+        fi
+        mkdir -p ${dest}
+	mountpoint -q ${dest}
+        if [ $? -eq 0 ] ; then
+                umount ${dest}
+        fi
+
+        mount -t jffs2 ${dev} ${dest}
+
+        if [ $? -ne 0 ] ; then
+                echo "Retrying jffs2 mount"
+		format_as_jffs2 ${mtdchar}
+		mount -t jffs2 ${dev} ${dest}
+        fi
+
+	mountpoint -q ${dest}
+	if [ $? -ne 0 ] ; then
+                echo "Error: jffs2 mount failed"
+		return 4
+        fi
+
+        return 0
 }
 
-#try_switchroot /dev/mtdblock2 jffs2
+umount_point()
+{
+        umount ${1}
+}
 
-#try_switchroot /dev/mmcblk0p4 auto
+#param1: MTD char device to format
+format_as_jffs2()
+{
+        chardev=${1}
+        if [ ! -c "${chardev}" ] ; then
+                return 5
+        fi
+        /usr/sbin/flash_erase -j ${chardev} 0 0
+}
+
+run_init()
+{
+        jfs=${1}
+        if [ -x "${jfs}/init" ] ; then
+                echo "Press any key to abort executing ${rwfsmount}/init. 5 seconds to respond..."
+                read_char_timeout5 answer
+                if [ "X$answer" = "X" ] ; then
+                        ${fs}/init
+        fi
+      fi
+}
+
+setup_flash()
+{
+	magic="$(xxd -l 4 -p /dev/mtd2 | cut -c 1-8)"
+	magic2="$(xxd -l 4 -p /dev/mtd2 | cut -c 1-4)"
+	mtdblock=/dev/mtdblock2
+	mtdchar=/dev/mtd2
+
+
+	if [ "X$magic" = "X68737173" ] ; then
+		#squashfs
+		mount_squashfs ${mtdblock} "/mnt/rwfs"
+		if [ $? -eq 0 ] ; then
+			cp -rf /mnt/rwfs /tmp/
+			umount_point "/mnt/rwfs"
+		fi
+
+		#format jffs2
+		format_as_jffs2 ${mtdchar}
+		# mount jffs2
+		mount_jffs2 ${mtdblock} "/mnt/rwfs" ${mtdchar}
+		#copy content to jffs2 mount
+		if [ -e "/tmp/rwfs" ] ; then
+			cp -r /tmp/rwfs/* /mnt/rwfs/
+			run_init /mnt/rwfs
+		fi
+
+	elif [ "X$magic2" = "X8519" ] ; then
+	# Jffs2
+		mount_jffs2 ${mtdblock} /mnt/rwfs ${mtdchar}
+		run_init /mnt/rwfs/
+	else
+		format_as_jffs2 ${mtdchar}
+		mount_jffs2 ${mtdblock} /mnt/rwfs ${mtdchar}
+
+	fi
+}
+
+############## Main #############
 
 #try_switchroot /dev/mmcblk0p3 auto
+/bin/mount -t proc proc /proc
+/bin/mount -t sysfs sysfs /sys
 
-try_rwfs /dev/mtdblock2
+# added from buildroot 2012.05
+/bin/mount -t devtmpfs devtmpfs /dev
+
+if [ ! -e "/dev/console" ] ; then
+mknod /dev/console c 5 1
+fi
+
+setup_flash
 
 if [ -x "/sbin/presetup" ] ; then
 	/sbin/presetup
