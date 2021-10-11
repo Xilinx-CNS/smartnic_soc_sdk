@@ -17,3 +17,5 @@ update_version_suc_cmd.patch
 fix_ed_board_info.patch
 update_partition_table_suc_cmd.patch
 usb_fix.patch
+wait_for_pci_device.patch
+autoboot.patch

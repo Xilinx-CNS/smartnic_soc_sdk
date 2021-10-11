@@ -178,6 +178,7 @@ endif
 	chmod +x usr/bin/setup; \
 	chown -R root:root usr/bin/setup; \
 	cp $(initramfs_nw_file) etc/network/interfaces ; \
+	cp $(initramfs_SRC)/fw_env.config etc/ ; \
 	find . | cpio -o -H newc  > $(initramfs_CPIO)" >> fakeme;
 	chmod +x fakeme
 	fakeroot ./fakeme

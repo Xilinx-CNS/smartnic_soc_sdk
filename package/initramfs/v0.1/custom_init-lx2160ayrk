@@ -116,11 +116,11 @@ format_as_jffs2()
 run_init()
 {
         jfs=${1}
-        if [ -x "${jfs}/init" ] ; then
-                echo "Press any key to abort executing ${rwfsmount}/init. 5 seconds to respond..."
+        if [ -x "${jfs}/preinit" ] ; then
+                echo "Press any key to abort executing ${jfs}/preinit. 5 seconds to respond..."
                 read_char_timeout5 answer
                 if [ "X$answer" = "X" ] ; then
-                        ${fs}/init
+                        ${jfs}/preinit
         fi
       fi
 }

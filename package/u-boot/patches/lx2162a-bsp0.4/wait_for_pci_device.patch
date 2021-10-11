@@ -1,0 +1,159 @@
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/pci/pci-uclass.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/drivers/pci/pci-uclass.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/pci/pci-uclass.c
+@@ -758,6 +758,53 @@ error:
+ 	return ret;
+ }
+ 
++static inline int is_pci_vendor_valid(ulong vendor)
++{
++	return ((vendor != 0x0000) && (vendor != 0xffff));
++}
++
++#define PCI_EXP_LNKCAP 0x0c
++#define PCI_EXP_LNKCAP_DLL_ACT 0x100000
++#define PCI_EXP_LNKSTA 0x12
++#define PCI_EXP_LNKSTA_DLL 0x2000
++void wait_for_pci_conf(struct udevice *bus, pci_dev_t bdf, uint delay,
++		       ulong *vendor)
++{
++	uint timeout = delay * 10;
++	int ret = 0;
++	int pcie_off;
++	u16 lnksta;
++	u32 lnkcap;
++
++	pcie_off = dm_pci_find_capability(bus, PCI_CAP_ID_EXP);
++	dm_pci_read_config32(bus, pcie_off + PCI_EXP_LNKCAP, &lnkcap);
++
++	if (!(lnkcap & PCI_EXP_LNKCAP_DLL_ACT)) {
++		printf("DLL active capability not supported. skip waiting\n");
++		return;
++	}
++	dm_pci_read_config16(bus, pcie_off + PCI_EXP_LNKSTA, &lnksta);
++	if (!(lnksta & PCI_EXP_LNKSTA_DLL)) {
++		printf("DLL active bit not set. skip waiting\n");
++		return;
++	}
++	printf("Wait for valid PCI configuration\n");
++	while (timeout) {
++		mdelay(100);
++		ret = pci_bus_read_config(bus, bdf, PCI_VENDOR_ID, vendor, PCI_SIZE_16);
++                if (ret)
++			return;
++		if (is_pci_vendor_valid(*vendor))
++			break;
++		timeout--;
++	}
++	if (!timeout) {
++		printf("PCI device not detected\n");
++	}
++
++	return;
++}
++
+ int pci_bind_bus_devices(struct udevice *bus)
+ {
+ 	ulong vendor, device;
+@@ -765,10 +812,13 @@ int pci_bind_bus_devices(struct udevice
+ 	pci_dev_t bdf, end;
+ 	bool found_multi;
+ 	int ret;
+-
++	struct udevice *ctlr = pci_get_controller(bus);
++	uint delay = 0;
+ 	found_multi = false;
+ 	end = PCI_BDF(bus->seq, PCI_MAX_PCI_DEVICES - 1,
+ 		      PCI_MAX_PCI_FUNCTIONS - 1);
++	if (ctlr)
++		fdtdec_get_int_array(gd->fdt_blob, dev_of_offset(ctlr), "timeout", &delay, 1);
+ 	for (bdf = PCI_BDF(bus->seq, 0, 0); bdf <= end;
+ 	     bdf += PCI_BDF(0, 0, 1)) {
+ 		struct pci_child_platdata *pplat;
+@@ -779,14 +829,16 @@ int pci_bind_bus_devices(struct udevice
+ 			found_multi = false;
+ 		if (PCI_FUNC(bdf) && !found_multi)
+ 			continue;
+-
+ 		/* Check only the first access, we don't expect problems */
+ 		ret = pci_bus_read_config(bus, bdf, PCI_VENDOR_ID, &vendor,
+ 					  PCI_SIZE_16);
+ 		if (ret)
+ 			goto error;
+-
+-		if (vendor == 0xffff || vendor == 0x0000)
++		if (!is_pci_vendor_valid(vendor) && delay) {
++			wait_for_pci_conf(bus, bdf, delay, &vendor);
++		}
++		delay = 0;
++		if (!is_pci_vendor_valid(vendor))
+ 			continue;
+ 
+ 		pci_bus_read_config(bus, bdf, PCI_HEADER_TYPE,
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z.dts
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/arch/arm/dts/fsl-lx2162a-u26z.dts
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/arch/arm/dts/fsl-lx2162a-u26z.dts
+@@ -82,10 +82,24 @@
+ 	status = "okay";
+ };
+ 
++&pcie1 {
++	status = "disabled";
++};
++
++
+ &pcie2 {
+ 	status = "disabled";
+ };
+ 
++&pcie3 {
++	timeout = <0x1e>;
++};
++
++&pcie4 {
++	status = "disabled";
++};
++
++
+ &pcie5 {
+ 	status = "disabled";
+ };
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/pci/pcie_layerscape.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/drivers/pci/pcie_layerscape.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/drivers/pci/pcie_layerscape.c
+@@ -527,6 +527,8 @@ static int ls_pcie_probe(struct udevice
+ 	int node = dev_of_offset(dev);
+ 	u16 link_sta;
+ 	int ret;
++	u32 delay = 10; // delay in secondsi
++	u32 count = 0;
+ 
+ 	pcie->bus = dev;
+ 
+@@ -641,12 +643,19 @@ static int ls_pcie_probe(struct udevice
+ 		ls_pcie_setup_ctrl(pcie);
+ 	}
+ 
+-	if (!ls_pcie_link_up(pcie)) {
+-		/* Let the user know there's no PCIe link */
+-		printf(": no link\n");
+-		return 0;
++	if (!ls_pcie_link_up(pcie))
++		printf(": Wait %u secs for link up\n", delay);
++	count = delay * 10;
++	while (!ls_pcie_link_up(pcie) && count) {
++		mdelay(100);
++		count--;
+ 	}
+ 
++	if (!count) {
++		/* Let the user know there's no PCIe link */
++                printf(": no link\n");
++                return 0;
++	}
+ 	/* Print the negotiated PCIe link width */
+ 	link_sta = readw(pcie->dbi + PCIE_LINK_STA);
+ 	printf(": x%d gen%d\n", (link_sta & PCIE_LINK_WIDTH_MASK) >> 4,

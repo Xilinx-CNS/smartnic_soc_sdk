@@ -1,4 +1,4 @@
-SN1000 Smartnic SoC release images v1.1.0
+SN1000 Smartnic SoC release images
 boot_mmc1.tgz --> Include, maintenance Linux image, and main rootfs images.
 boot_xspi.img --> maintenance kernel image, required to upgrade if you are using version older than 0.3.0
 boot_xspi_2M.img ---> required to recover SoC in case even maintenance kernel is not responding.

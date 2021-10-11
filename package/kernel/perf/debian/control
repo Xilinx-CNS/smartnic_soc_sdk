@@ -1,0 +1,15 @@
+Source: perf-VERSION
+Section: kernel
+Priority: optional
+Standards-Version: 3.6.1
+Maintainer: Nick Bane <nbane@xilinx.com>
+Build-Depends: debhelper-compat (= 10)
+Homepage: http://www.kernel.org/
+
+Package: perf-VERSION
+Architecture: arm64
+Description: Perf tools, version VERSION
+#Depends: ${misc:Depends}  ${shlibs:Depends}
+#Conflicts: linux-perf
+ This package contains the Linux kernel perf tool
+ it may conflict with the linux-perf package

@@ -112,6 +112,7 @@ kernel_BUILDER=$(kernel_RES)/$(kernel_BUILDER_FILENAME)
 kernel_MODULES=$(kernel_RES)/$(kernel_BUILD)-modules.tgz
 kinitramfs_MODULES=$(kernel_RES)/$(kernel_BUILD)-kinitramfs-modules.tgz
 kernel_MODULES_SYMVERS=$(kernel_RES)/$(kernel_BUILD)-modules.symvers
+kernel_SYSTEMMAP=$(kernel_RES)/$(kernel_BUILD)-System.map
 kernel_MODULES_DIR=$(kernel_RES)/linux-$(kernel_VERSION_NAME)-modules
 kinitramfs_MODULES_DIR=$(kernel_RES)/linux-$(kernel_VERSION_NAME)-kinitramfs-modules
 kernel_DEFCONFIG_CLEAN:=defconfig $(kernel_DEFCONFIG_CLEAN_CUSTOM)
@@ -239,6 +240,27 @@ endif
 endif
 	cp $(kernel_BUILDDIR)/arch/$(ARCH)/boot/Image $(kernel_ImageBoot)
 
+KERNELRELEASE = $(shell cat $(kernel_BUILDDIR)/include/config/kernel.release 2> /dev/null)
+ifeq ($(SNIC_PERF_DEBIAN_PACKAGE),y)
+PERFDIR = $(kernel_RES)/perf-$(KERNELRELEASE)
+PERFDEB=$(kernel_RES)/perf-$(KERNELRELEASE)_$(KERNELRELEASE)_arm64.deb
+
+$(PERFDEB): $(kernel_ImageBoot)
+	mkdir -p $(PERFDIR); \
+	cp -r $(kernel_PACKAGEDIR)/perf/* $(PERFDIR); \
+	(cd $(PERFDIR) && sed -i debian/changelog -e "s/VERSION/$(KERNELRELEASE)/g" && sed -i debian/control -e "s/VERSION/$(KERNELRELEASE)/g"); \
+	(cd $(kernel_BUILDDIR) && $(KERNEL_CROSSOPTS) $(MAKE) $(MAKEOPTS) -C tools/ perf_install prefix=$(PERFDIR)/build); \
+	(cd $(PERFDIR) && dpkg-buildpackage -a $(ARCH) -uc -us ); \
+
+perf:$(PERFDEB)
+perf-clean:
+	rm -rf $(kernel_RES)/perf*
+
+PHONY += perf perf-clean
+
+kernel_clean_targets: kernel-perf-clean
+endif
+
 kernel_IMAGES+=$(kernel_ImageBoot)
 
 ifeq ($(SNIC_KERNEL_COMPRESSED),y)
@@ -317,6 +339,7 @@ $(kernel_MODULES): $(kernel_ImageBoot)
 	@echo "I: Installed in tree modules"
 	if [ -r $(kernel_MODULES_SYMVERS) ]; then  rm -f $(kernel_MODULE_SYMVERS); fi;
 	cp $(kernel_BUILDDIR)/Module.symvers $(kernel_MODULES_SYMVERS)
+	cp $(kernel_BUILDDIR)/System.map $(kernel_SYSTEMMAP)
 	(cd $(kernel_MODULES_DIR) &&  tar --create --gzip --file $(kernel_MODULES) lib)
 
 $(kernel_KERNEL_MODULES_SYMVERS): $(kernel_MODULES)
@@ -405,6 +428,7 @@ $(kernel_TARBALL): $(kernel_CONFIG) $(kernel_MODULES)
 	cp $(kernel_BUILDDIR)/.config $(kernel_source_tmp_dir)/$(kernel_BUILD)/
 	#cp $(kernel_BUILDDIR)/Module.symvers $(kernel_source_tmp_dir)/$(kernel_BUILD)/
 	cp $(kernel_MODULES_SYMVERS) $(kernel_source_tmp_dir)/$(kernel_BUILD)/Module.symvers
+	cp $(kernel_SYSTEMMAP) $(kernel_source_tmp_dir)/$(kernel_BUILD)/System.map
 	(cd $(kernel_source_tmp_dir) && rm -f $(kernel_BUILD)/patches && tar czf $(kernel_TARBALL) $(kernel_BUILD)/.config $(kernel_BUILD)/*)
 	rm -rf $(kernel_source_tmp_dir)
 	touch $(kernel_TARBALL)

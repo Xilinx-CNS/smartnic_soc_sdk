@@ -30,6 +30,7 @@ arguments:
   -h, --help                    show this help message and exit
   --image-path <FILE>           Packed tgz file with all required binaries(boot_mmc1.tgz)
   --debug                       Print debug messages
+  --format-mmc                  Format mmc partitions. Data will be lost.
 '''
 
 class MyArgumentParser(argparse.ArgumentParser):
@@ -41,6 +42,7 @@ parser = MyArgumentParser(description='Update Maintenance')
 parser.add_argument('--image-path', metavar=(": Packed tgz file with all required binaries"), dest='boottgz', type = str, nargs=1, default=None)
 parser.add_argument('--update-rootfs', metavar=(": Rootfs tar.gz path"), dest='rfspath', type = str, nargs=1, default=None)
 parser.add_argument('--debug', metavar=(": Print debug messages"), dest='dbg', default = False, action="store_true")
+parser.add_argument('--format-mmc', metavar=(": Format mmc partitions. Data will be lost."), dest='format', default = False, action="store_true")
 parser.add_argument('--auto', metavar=(": Run Recovery/Upgrade automatically"), dest='auto', default = False, action="store_true")
 
 def debug(txt):
@@ -80,6 +82,7 @@ def mount_devpart(devpart, mountpoint, opt=""):
             debug("Mounting device %s to folder %s,  status: %d" % (devpart, mountpoint, r))
             if r != 0:
                 print("Error: %s" % str)
+		ret = False
 
     else:
         ret = False
@@ -89,6 +92,8 @@ def mount_devpart(devpart, mountpoint, opt=""):
 def umount_devpart(mountpoint):
     retval = 1
     msg = ""
+    if not is_mountpoint(mountpoint):
+	return True
     retval, msg = run_cmd("umount %s" % mountpoint)
     return retval == 0
 
@@ -136,6 +141,13 @@ def find_config(key, default=None, conf = None):
             return value
 
     return default
+
+def is_mountpoint(path):
+    cmd = "mountpoint -q %s" % path
+    ret, str = run_cmd(cmd)
+    if ret != 0:
+        return False
+    return True
 
 def validate_bootfs(rfspath):
 
@@ -201,6 +213,8 @@ class maint_obj:
         self.args = args
 
     def parse_upgrade_json(self):
+	if not path_exists(self.path):
+	    return
         with open(self.path, "r") as f:
             try:
                 maint = json.load(f)
@@ -273,7 +287,6 @@ class maint_obj:
 
         self.update_mmc_boot = find_config("update_mmc%d_boot" % self.mmcidx, False, self.remote_json)
         self.update_mmc_boot_file = find_config("update_mmc%d_boot_file" % self.mmcidx, None, self.remote_json)
-        # TODO Do we need to give option of reboot. Seems no to me
         self.reboot = find_config("reboot", False, self.remote_json)
 
         return ret
@@ -287,11 +300,8 @@ class maint_obj:
         umount_devpart(self.sddev)
 
     def mount_p2p3(self):
-        if not mount_devpart(self.blockdev + "p2", self.maindir):
-            print ("Error: Maintenance mount error")
-
-        if not mount_devpart(self.blockdev + "p3", self.rootdir):
-            print ("Error: Rootfs mount error")
+        mount_devpart(self.blockdev + "p2", self.maindir)
+	mount_devpart(self.blockdev + "p3", self.rootdir)
 
     def unmount_p2p3(self):
         if not umount_devpart(self.maindir):
@@ -451,8 +461,12 @@ class maint_obj:
     def do_local_recovery(self):
         debug("\n\t Recovery from mmc\n")
         val = 0
-        print ("Decompressing root file system. It will take around 2 minute")
-        retval = self.populate_dir(self.maindir + '/data/rootfs.tgz', self.rootdir)
+	retval = False
+	if is_mountpoint(self.rootdir) and is_mountpoint(self.maindir):
+            print ("Decompressing root file system. It will take around 2 minute")
+            retval = self.populate_dir(self.maindir + '/data/rootfs.tgz', self.rootdir)
+	else:
+            print("Error: Emmc partitions not mounted.")
         if retval:
             retval, val = self.get_i2c_regb(I2CBUS, I2CDEV, I2CSCRATCHREG)
         val = val | RECOVERED_BIT
@@ -473,7 +487,10 @@ class maint_obj:
         if self.args.auto:
             # Allow Auto upgrade/recovery to run
             return False
-
+	if self.args.format:
+            ret = True
+	    self.partition_mmc()
+            self.mount_p2p3()
         if self.args.boottgz is not None:
             ret = True
             self.cmd_boottgz(args)
@@ -491,6 +508,9 @@ class maint_obj:
         if not retval:
             print(errmsg)
             return False
+	if not is_mountpoint(self.rootdir):
+            print("Error: Emmc partitions not mounted.")
+	    return False
         print ("Decompressing root file system. It will take around 2 minute")
         retval = self.populate_dir(args.rfspath[0], self.rootdir)
         if not retval:
@@ -510,11 +530,15 @@ class maint_obj:
         if not retval:
             print(errmsg)
             return False
+	if (not is_mountpoint(self.rootdir)) or (not is_mountpoint(self.maindir)):
+            print("Error: Emmc partitions not mounted. Try formatting with --format-mmc option")
+	    return False
         self.tmp_boot_tgz = boottgz
         debug("Installing " + self.tmp_boot_tgz + " over boot partition")
         retval = self.populate_dir(self.tmp_boot_tgz, self.maindir)
         if not retval:
             print("Error: Are you sure file passed is boot_mmc1.tgz")
+	    return False
         if retval:
             print ("Decompressing root file system. It will take around 2 minute")
             retval = self.populate_dir(self.maindir + '/' + "data/rootfs.tgz", self.rootdir)
@@ -589,8 +613,12 @@ class maint_obj:
             if not self.fetch_usbfile("%s/%s" % (self.sdir, self.rootfs_tgz), "/tmp/rootfs.tgz"):
                 self.umount_usb()
                 return False
+            if not is_mountpoint(self.rootdir):
+                print("Error: Emmc partitions not mounted.")
+		self.umount_usb()
+                return False
             print ("Decompressing root file system. It will take around 2 minute")
-            self.populate_dir("/tmp/rootfs.tgz", self.rootdir)
+	    self.populate_dir("/tmp/rootfs.tgz", self.rootdir)
 
         self.umount_usb()
         return True
@@ -604,9 +632,12 @@ class maint_obj:
             retval = run_cmd("update_xspi " + xspi)[0] == 0
             run_cmd("rm -rf %s" % xspi)
         if self.install_rootfs:
-            print ("Decompressing root file system. It will take around 2 minute")
-            retval = self.populate_dir(self.maindir + '/' + self.rootfs_tgz, self.rootdir)
-            run_cmd("rm -rf %s/%s" % (self.maindir, self.rootfs_tgz))
+	    if is_mountpoint(self.rootdir) and is_mountpoint(self.maindir):
+                print ("Decompressing root file system. It will take around 2 minute")
+                retval = self.populate_dir(self.maindir + '/' + self.rootfs_tgz, self.rootdir)
+                run_cmd("rm -rf %s/%s" % (self.maindir, self.rootfs_tgz))
+	    else:
+                print("Error: Emmc partitions not mounted.")
         if self.install_boot_tgz and path_exists(self.maindir + '/' + self.boot_tgz):
             run_cmd("mv %s/%s /tmp/boot_mmc1.tgz" % (self.maindir, self.boot_tgz))
             retval = self.process_boottgz("/tmp/boot_mmc1.tgz")

@@ -4,7 +4,16 @@
 # Copyright (c) 2020 - 2021,  Xilinx, Inc.
 # All rights reserved.
 #
-echo Setting bootargs for root=/dev/ROOT
+
+if env exists serial_console; then
+    if test "${serial_console}" = "default"; then
+        setenv serial_console ttyAMA0,115200;
+	fi;
+else
+    setenv serial_console tty1;
+fi;
+echo setting linux console to ${serial_console};
+setenv bootargs ${bootargs} console=${serial_console};
 
 #SUC Device address
 i2c_chipaddr=0x48

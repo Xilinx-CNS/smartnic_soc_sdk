@@ -1,0 +1,29 @@
+Index: u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/common/autoboot.c
+===================================================================
+--- u-boot-lx2162a-bsp0.4-lx2162au26z-minimal.orig/common/autoboot.c
++++ u-boot-lx2162a-bsp0.4-lx2162au26z-minimal/common/autoboot.c
+@@ -251,10 +251,9 @@ static int abortboot_single_key(int boot
+ 	/*
+ 	 * Check if key already pressed
+ 	 */
+-	if (tstc()) {	/* we got a key press	*/
++	udelay(10000);
++	while (tstc()) {	/* we got a key press	*/
+ 		(void) getc();  /* consume input	*/
+-		puts("\b\b\b 0");
+-		abort = 1;	/* don't auto boot	*/
+ 	}
+ 
+ 	while ((bootdelay > 0) && (!abort)) {
+@@ -275,11 +274,9 @@ static int abortboot_single_key(int boot
+ 			udelay(10000);
+ 		} while (!abort && get_timer(ts) < 1000);
+ 
+-		printf("\b\b\b%2d ", bootdelay);
+ 	}
+ 
+ 	putc('\n');
+-
+ 	return abort;
+ }
+ 

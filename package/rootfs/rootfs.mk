@@ -244,6 +244,7 @@ include $(PACKAGEDIR)/diagnostics/diagnostics.mk
 include $(PACKAGEDIR)/suc_comms/suc_comms.mk
 include $(PACKAGEDIR)/thermalload/thermalload.mk
 include $(PACKAGEDIR)/power_throttle/power_throttle.mk
+include $(PACKAGEDIR)/kernel/perf/perf.mk
 
 rootfs_tmp_stamp=$(BUILDDIR)/.conf/rootfs/rootfs-tmp.stamp
 
@@ -355,7 +356,7 @@ endif
 ifeq ($(SNIC_ROOTFS_KERNEL_SOURCE_BUILD),y)
 	@echo "cd /usr/src/linux-$(SDK_VERSION); make -j 4; make modules; make modules_install; make install" >> $(rootfs_TMP)/tmp/dostuff.sh
 else
-	@echo "cd /usr/src/linux-$(SDK_VERSION); make modules_prepare" >> $(rootfs_TMP)/tmp/dostuff.sh
+	@echo "cd /usr/src/linux-$(SDK_VERSION); LOCALVERSION=-$(SDK_VERSION) make modules_prepare" >> $(rootfs_TMP)/tmp/dostuff.sh
 endif
 endif
 

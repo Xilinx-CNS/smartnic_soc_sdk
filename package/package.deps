@@ -226,7 +226,7 @@ qemu-user-static:
 	@#testing if $@ toolchain is installed - install it if the build stops here
 	@qemu-aarch64-static --version > /dev/null 2>&1 || if [ -e $(OS_VER) ]; then $(INSTALL_PACKAGE) qemu-user-static; fi
 
-binfmt:
+binfmt: qemu-user-static
 	@#echo I: Checking binfmt 
 	@if ! grep 'binfmt' /proc/mounts > /dev/null 2>&1; then \
 	$(ROOTCMD) mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc > /dev/null 2>&1; \

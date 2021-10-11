@@ -139,6 +139,9 @@ config SNIC_KERNEL_DEBIAN_PACKAGE
 	bool "Build debian packages"
 	default "n"
 
+config SNIC_PERF_DEBIAN_PACKAGE
+	depends on SNIC_KERNEL_BOOT
+	bool "Build perf debian packages"
 endmenu
 
 endif
