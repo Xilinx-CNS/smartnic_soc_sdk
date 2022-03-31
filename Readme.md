@@ -21,10 +21,10 @@ The build system is intended to run under Debian based distributions. It is test
    - This step requires root access to restart `systemd-binfmt.service`.
 5. Copy the Debian packages which needs to be included in RootFS to imports/debian folder
    - `cp *.deb imports/debian/`
-6. Packages which needs to be pre-installed shall be mentioned in file imports/debian/install.list.
+6. Packages which needs to be pre-installed shall be mentioned in file `imports/debian/install.list`.
 7. Use preseed file to avoid downloading third party source code again.
    - `make import-downloads`
-8. Start compilation, This will take ~2 hrs for builds from a fresh checkout.
+8. Start compilation, This needs root access and will take ~2 hrs for builds from a fresh checkout.
    - `make`
    - `make boot`
 9. Once successfully compiled, Images shall be available in build/lx2162a/boot/ directory.
