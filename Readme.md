@@ -10,8 +10,10 @@ The build system is intended to run under Debian based distributions. It is test
 
 ### Steps to checkout and build the SDK
 
-1. Download the third party source package to smartnic_soc_sdk.
-2. Rename the third party source package as preseed.tgz.
+1. Clone the repo to a local directory named `smartnic_soc_sdk`
+2. Prepare Arm SDK Third party Source package
+    - Download the third party source package to `smartnic_soc_sdk`.
+    - Rename the third party source package as `preseed.tgz`
 3. Generate a default configuration using following command
    - make defconfig
 4. Install the missing build dependencies using following command
